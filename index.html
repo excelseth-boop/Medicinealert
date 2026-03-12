@@ -1226,7 +1226,7 @@ function addMedicine() {
   if (!name) { showToast('⚠️ Enter medicine name'); return; }
   if (!dosage) { showToast('⚠️ Enter dosage'); return; }
   if (selectedTimes.length === 0) { showToast('⚠️ Select at least one time'); return; }
-  if (medicines.length >= 10) { showToast('⚠️ Max 10 medicines reached'); return; }
+  if (medicines.length >= 30) { showToast('⚠️ Max 30 medicines reached'); return; }
 
   const med = {
     id: 'med_' + Date.now(),
