@@ -112,6 +112,9 @@
   .checkbox-group{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px}
   .time-chip{padding:6px 13px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s}
   .time-chip.selected{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+  .time-chip-wrap{display:flex;flex-direction:column;gap:5px}
+  .time-sub-select{display:none;background:var(--surface3);border:1px solid var(--accent);border-radius:10px;color:var(--accent);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;padding:5px 9px;outline:none;cursor:pointer;-webkit-appearance:none;width:100%}
+  .time-chip-wrap.selected .time-sub-select{display:block}
   .add-med-btn{width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:opacity 0.2s;letter-spacing:0.3px}
   .add-med-btn:active{opacity:0.8}
 
@@ -311,12 +314,60 @@
     </div>
     <label class="form-label">Time of Day (select all that apply)</label>
     <div class="checkbox-group" id="timeChips">
-      <div class="time-chip" data-val="morning" onclick="toggleChip(this)">🌅 Morning</div>
-      <div class="time-chip" data-val="afternoon" onclick="toggleChip(this)">☀️ Afternoon</div>
-      <div class="time-chip" data-val="evening" onclick="toggleChip(this)">🌆 Evening</div>
-      <div class="time-chip" data-val="night" onclick="toggleChip(this)">🌙 Night</div>
-      <div class="time-chip" data-val="bedtime" onclick="toggleChip(this)">🛏️ Bedtime</div>
-      <div class="time-chip" data-val="emptystomach" onclick="toggleChip(this)">🫙 Empty Stomach</div>
+      <div class="time-chip-wrap" id="wrap_emptystomach">
+        <div class="time-chip" data-val="emptystomach" onclick="toggleChip(this,'wrap_emptystomach')">🫙 Empty Stomach</div>
+        <select class="time-sub-select" id="time_emptystomach">
+          <option value="6:00 AM">6:00 AM</option>
+          <option value="6:30 AM">6:30 AM</option>
+          <option value="7:00 AM" selected>7:00 AM</option>
+          <option value="7:30 AM">7:30 AM</option>
+          <option value="8:00 AM">8:00 AM</option>
+        </select>
+      </div>
+      <div class="time-chip-wrap" id="wrap_morning">
+        <div class="time-chip" data-val="morning" onclick="toggleChip(this,'wrap_morning')">🌅 Morning</div>
+        <select class="time-sub-select" id="time_morning">
+          <option value="9:00 AM" selected>9:00 AM</option>
+          <option value="9:30 AM">9:30 AM</option>
+          <option value="10:00 AM">10:00 AM</option>
+        </select>
+      </div>
+      <div class="time-chip-wrap" id="wrap_afternoon">
+        <div class="time-chip" data-val="afternoon" onclick="toggleChip(this,'wrap_afternoon')">☀️ Afternoon</div>
+        <select class="time-sub-select" id="time_afternoon">
+          <option value="1:00 PM" selected>1:00 PM</option>
+          <option value="1:30 PM">1:30 PM</option>
+          <option value="2:00 PM">2:00 PM</option>
+          <option value="2:30 PM">2:30 PM</option>
+          <option value="3:00 PM">3:00 PM</option>
+        </select>
+      </div>
+      <div class="time-chip-wrap" id="wrap_evening">
+        <div class="time-chip" data-val="evening" onclick="toggleChip(this,'wrap_evening')">🌆 Evening</div>
+        <select class="time-sub-select" id="time_evening">
+          <option value="5:00 PM" selected>5:00 PM</option>
+          <option value="5:30 PM">5:30 PM</option>
+          <option value="6:00 PM">6:00 PM</option>
+          <option value="6:30 PM">6:30 PM</option>
+          <option value="7:00 PM">7:00 PM</option>
+        </select>
+      </div>
+      <div class="time-chip-wrap" id="wrap_night">
+        <div class="time-chip" data-val="night" onclick="toggleChip(this,'wrap_night')">🌙 Night</div>
+        <select class="time-sub-select" id="time_night">
+          <option value="8:00 PM" selected>8:00 PM</option>
+          <option value="8:30 PM">8:30 PM</option>
+          <option value="9:00 PM">9:00 PM</option>
+        </select>
+      </div>
+      <div class="time-chip-wrap" id="wrap_bedtime">
+        <div class="time-chip" data-val="bedtime" onclick="toggleChip(this,'wrap_bedtime')">🛏️ Bedtime</div>
+        <select class="time-sub-select" id="time_bedtime">
+          <option value="10:00 PM" selected>10:00 PM</option>
+          <option value="10:30 PM">10:30 PM</option>
+          <option value="11:00 PM">11:00 PM</option>
+        </select>
+      </div>
     </div>
     <label class="form-label">Notes (optional)</label>
     <input class="form-input" id="medNotes" placeholder="e.g. Take with water">
@@ -407,12 +458,12 @@ function setData(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 
 // ===== CONSTANTS =====
 const SLOTS=[
-  {id:'morning',     label:'Morning',      time:'8:00 AM',     icon:'🌅',dot:'#fbbf24'},
-  {id:'afternoon',   label:'Afternoon',    time:'1:00 PM',     icon:'☀️',dot:'#f97316'},
-  {id:'evening',     label:'Evening',      time:'6:00 PM',     icon:'🌆',dot:'#a78bfa'},
-  {id:'night',       label:'Night',        time:'9:00 PM',     icon:'🌙',dot:'#60a5fa'},
-  {id:'bedtime',     label:'Bedtime',      time:'10:30 PM',    icon:'🛏️',dot:'#34d399'},
-  {id:'emptystomach',label:'Empty Stomach',time:'Before meals',icon:'🫙',dot:'#fb923c'},
+  {id:'emptystomach',label:'Empty Stomach',time:'7:00 AM',    icon:'🫙',dot:'#fb923c'},
+  {id:'morning',     label:'Morning',      time:'9:00 AM',    icon:'🌅',dot:'#fbbf24'},
+  {id:'afternoon',   label:'Afternoon',    time:'1:00 PM',    icon:'☀️',dot:'#f97316'},
+  {id:'evening',     label:'Evening',      time:'5:00 PM',    icon:'🌆',dot:'#a78bfa'},
+  {id:'night',       label:'Night',        time:'8:00 PM',    icon:'🌙',dot:'#60a5fa'},
+  {id:'bedtime',     label:'Bedtime',      time:'10:00 PM',   icon:'🛏️',dot:'#34d399'},
 ];
 const MED_ICONS=['💊','💉','🧪','🌿','🔵','🔴','🟡','🟠'];
 const P_EMOJIS=['👨','👩','👴','👵','🧒'];
@@ -504,7 +555,7 @@ function renderToday(){
     const sm=meds.filter(m=>m.times.includes(slot.id));
     if(!sm.length)return;
     const wrap=document.createElement('div');wrap.className='dose-slot';
-    let h=`<div class="slot-label"><div class="slot-dot" style="background:${slot.dot}"></div><div class="slot-name">${slot.icon} ${slot.label}</div><div class="slot-time">${slot.time}</div></div>`;
+    let h=`<div class="slot-label"><div class="slot-dot" style="background:${slot.dot}"></div><div class="slot-name">${slot.icon} ${slot.label}</div><div class="slot-time">${sm[0]?.slotTimes?.[slot.id]||slot.time}</div></div>`;
     sm.forEach(med=>{
       total++;
       const key=`${med.id}_${slot.id}`;
@@ -605,7 +656,10 @@ function renderBP(){
 }
 
 // ===== PRESCRIPTION =====
-function toggleChip(el){el.classList.toggle('selected')}
+function toggleChip(el,wrapId){
+  el.classList.toggle('selected');
+  if(wrapId)document.getElementById(wrapId).classList.toggle('selected',el.classList.contains('selected'));
+}
 
 function addMedicine(){
   const p=getAP();
@@ -615,18 +669,26 @@ function addMedicine(){
   const duration=document.getElementById('medDuration').value;
   const food=document.getElementById('medFood').value;
   const notes=document.getElementById('medNotes').value.trim();
-  const times=[...document.querySelectorAll('#timeChips .time-chip.selected')].map(c=>c.dataset.val);
+  // Collect selected slots with their chosen sub-times
+  const selectedChips=[...document.querySelectorAll('#timeChips .time-chip.selected')];
+  const times=selectedChips.map(c=>c.dataset.val);
+  const slotTimes={};
+  selectedChips.forEach(c=>{
+    const sel=document.getElementById('time_'+c.dataset.val);
+    if(sel)slotTimes[c.dataset.val]=sel.value;
+  });
   if(!name){showToast('⚠️ Enter medicine name');return}
   if(!dosage){showToast('⚠️ Enter dosage');return}
   if(!times.length){showToast('⚠️ Select at least one time');return}
   let meds=getMeds(p.id);
   if(meds.length>=30){showToast('⚠️ Max 30 medicines reached');return}
-  meds.push({id:'med_'+Date.now(),name,dosage,duration,food,notes,times,startDate:todayStr(),colorIndex:meds.length,addedAt:Date.now()});
+  meds.push({id:'med_'+Date.now(),name,dosage,duration,food,notes,times,slotTimes,startDate:todayStr(),colorIndex:meds.length,addedAt:Date.now()});
   setMeds(p.id,meds);
   document.getElementById('medName').value='';
   document.getElementById('medDose').value='';
   document.getElementById('medNotes').value='';
   document.querySelectorAll('#timeChips .time-chip').forEach(c=>c.classList.remove('selected'));
+  document.querySelectorAll('#timeChips .time-chip-wrap').forEach(w=>w.classList.remove('selected'));
   showToast(`💊 ${name} added for ${p.name}`);renderRx();
 }
 
@@ -649,7 +711,7 @@ function renderRx(){
   document.getElementById('medListContainer').innerHTML=meds.map(med=>{
     const ci=med.colorIndex%8,act=isActive(med);
     const dur=med.duration==='ongoing'?'Daily (ongoing)':`${med.duration} days from ${formatDate(med.startDate)}`;
-    const tl=med.times.map(t=>{const s=SLOTS.find(x=>x.id===t);return s?s.icon+' '+s.label:t}).join(', ');
+    const tl=med.times.map(t=>{const s=SLOTS.find(x=>x.id===t);const tm=med.slotTimes?.[t]||s?.time||'';return s?s.icon+' '+s.label+(tm?' ('+tm+')':''):t}).join(', ');
     return`<div class="med-list-item" style="opacity:${act?1:0.5}">
       <div class="med-list-icon color-${ci}">${MED_ICONS[ci]}</div>
       <div class="med-list-info">
