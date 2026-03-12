@@ -1001,15 +1001,39 @@ function init(){
   if(!persons.find(p=>p.id===activePid)){activePid=persons[0]?.id||null;setData('mc_activePid',activePid)}
   renderStrip();renderToday();
   if('Notification'in window)Notification.requestPermission();
-  setInterval(()=>{
-    const sh={morning:8,afternoon:13,evening:18,night:21,bedtime:22,emptystomach:7};
-    const h=new Date().getHours(),m=new Date().getMinutes();
-    SLOTS.forEach(slot=>{
+
+  // DATE CHANGE DETECTION
+  // taken{} is keyed by date string, so a new day is always empty automatically.
+  // We watch for the date changing and refresh the UI so ticks clear instantly.
+  let lastKnownDate = todayStr();
+
+  function checkDateRollover(){
+    const current = todayStr();
+    if(current !== lastKnownDate){
+      lastKnownDate = current;
+      document.getElementById('todayChip').textContent = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',weekday:'short'});
+      renderToday();
+      if(document.getElementById('page-bp').classList.contains('active')) renderBP();
+      showToast('New day — medicines reset');
+    }
+  }
+
+  // Fires when iPhone wakes from sleep or user returns to browser tab
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') checkDateRollover();
+  });
+
+  // Poll every minute to catch midnight if app stays open all night
+  setInterval(function(){
+    checkDateRollover();
+    var sh={morning:9,afternoon:13,evening:17,night:20,bedtime:22,emptystomach:7};
+    var h=new Date().getHours(), m=new Date().getMinutes();
+    SLOTS.forEach(function(slot){
       if(h===sh[slot.id]&&m<5){
-        persons.forEach(p=>{
-          const meds=getMeds(p.id).filter(isActive).filter(med=>med.times.includes(slot.id));
+        persons.forEach(function(p){
+          var meds=getMeds(p.id).filter(isActive).filter(function(med){return med.times.includes(slot.id)});
           if(meds.length&&'Notification'in window&&Notification.permission==='granted'){
-            new Notification(`💊 ${p.name} — ${slot.label} Medicines`,{body:meds.map(m=>m.name).join(', ')});
+            new Notification('Medicines: '+p.name+' - '+slot.label,{body:meds.map(function(m){return m.name}).join(', ')});
           }
         });
       }
