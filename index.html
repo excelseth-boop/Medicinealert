@@ -297,6 +297,22 @@
     animation: shrinkBar 60s linear forwards;
   }
   @keyframes shrinkBar { from{ width:100% } to{ width:0% } }
+
+  /* ===== DOSAGE SELECTOR ===== */
+  .dosage-wrap { margin-bottom: 13px; }
+  .dosage-type-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 9px; }
+  .dosage-type-btn {
+    padding: 9px 10px; border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--surface2); color: var(--text2);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+  .dosage-type-btn.active {
+    background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+  }
+  .dosage-select-row { display: none; }
+  .dosage-select-row.visible { display: block; }
 </style>
 </head>
 <body>
@@ -379,7 +395,26 @@
     <label class="form-label">Medicine Name</label>
     <input class="form-input" id="medName" placeholder="e.g. Amlodipine 5mg">
     <label class="form-label">Dosage</label>
-    <input class="form-input" id="medDose" placeholder="e.g. 1 tablet, 5ml">
+    <div class="dosage-wrap">
+      <div class="dosage-type-row">
+        <button type="button" class="dosage-type-btn active" id="doseTypeTablet" onclick="setDoseType('tablet','')">💊 Tablet</button>
+        <button type="button" class="dosage-type-btn" id="doseTypeLiquid" onclick="setDoseType('liquid','')">🧪 Liquid</button>
+      </div>
+      <div class="dosage-select-row visible" id="doseTabletRow">
+        <select class="form-select" id="medDoseTablet" style="margin-bottom:0">
+          <option value="1 Tablet">1 Tablet</option>
+          <option value="2 Tablets">2 Tablets</option>
+        </select>
+      </div>
+      <div class="dosage-select-row" id="doseLiquidRow">
+        <select class="form-select" id="medDoseLiquid" style="margin-bottom:0">
+          <option value="5 ml">5 ml</option>
+          <option value="10 ml">10 ml</option>
+          <option value="15 ml">15 ml</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" id="medDose">
     <div class="form-row">
       <div>
         <label class="form-label">Duration</label>
@@ -578,7 +613,26 @@
     <label class="form-label">Medicine Name</label>
     <input class="form-input" id="editMedName" placeholder="Medicine name">
     <label class="form-label">Dosage</label>
-    <input class="form-input" id="editMedDose" placeholder="e.g. 1 tablet">
+    <div class="dosage-wrap">
+      <div class="dosage-type-row">
+        <button type="button" class="dosage-type-btn active" id="editDoseTypeTablet" onclick="setDoseType('tablet','edit')">💊 Tablet</button>
+        <button type="button" class="dosage-type-btn" id="editDoseTypeLiquid" onclick="setDoseType('liquid','edit')">🧪 Liquid</button>
+      </div>
+      <div class="dosage-select-row visible" id="editDoseTabletRow">
+        <select class="form-select" id="editMedDoseTablet" style="margin-bottom:0">
+          <option value="1 Tablet">1 Tablet</option>
+          <option value="2 Tablets">2 Tablets</option>
+        </select>
+      </div>
+      <div class="dosage-select-row" id="editDoseLiquidRow">
+        <select class="form-select" id="editMedDoseLiquid" style="margin-bottom:0">
+          <option value="5 ml">5 ml</option>
+          <option value="10 ml">10 ml</option>
+          <option value="15 ml">15 ml</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" id="editMedDose">
     <div class="form-row">
       <div>
         <label class="form-label">Duration</label>
@@ -817,6 +871,54 @@ function renderBP(){
 }
 
 // ===== PRESCRIPTION =====
+// ===== DOSAGE TYPE SWITCHER =====
+function setDoseType(type, prefix){
+  var p = prefix ? prefix + 'D' : 'd';  // 'editD' or 'd'
+  var pre = prefix || '';
+
+  var tabBtn = document.getElementById(pre ? 'editDoseTypeTablet' : 'doseTypeTablet');
+  var liqBtn = document.getElementById(pre ? 'editDoseTypeLiquid' : 'doseTypeLiquid');
+  var tabRow = document.getElementById(pre ? 'editDoseTabletRow' : 'doseTabletRow');
+  var liqRow = document.getElementById(pre ? 'editDoseLiquidRow' : 'doseLiquidRow');
+
+  if(type === 'tablet'){
+    tabBtn.classList.add('active'); liqBtn.classList.remove('active');
+    tabRow.classList.add('visible'); liqRow.classList.remove('visible');
+  } else {
+    liqBtn.classList.add('active'); tabBtn.classList.remove('active');
+    liqRow.classList.add('visible'); tabRow.classList.remove('visible');
+  }
+}
+
+function getDosageValue(prefix){
+  var tabBtn = document.getElementById(prefix ? 'editDoseTypeTablet' : 'doseTypeTablet');
+  if(tabBtn.classList.contains('active')){
+    return document.getElementById(prefix ? 'editMedDoseTablet' : 'medDoseTablet').value;
+  } else {
+    return document.getElementById(prefix ? 'editMedDoseLiquid' : 'medDoseLiquid').value;
+  }
+}
+
+function setDosageValue(dosage, prefix){
+  // Detect type from saved value and pre-select
+  var isLiquid = /ml/i.test(dosage);
+  setDoseType(isLiquid ? 'liquid' : 'tablet', prefix);
+  if(isLiquid){
+    var sel = document.getElementById(prefix ? 'editMedDoseLiquid' : 'medDoseLiquid');
+    // Try exact match, fallback to 5ml
+    for(var i=0;i<sel.options.length;i++){
+      if(sel.options[i].value === dosage){ sel.selectedIndex = i; return; }
+    }
+    sel.selectedIndex = 0;
+  } else {
+    var sel2 = document.getElementById(prefix ? 'editMedDoseTablet' : 'medDoseTablet');
+    for(var i=0;i<sel2.options.length;i++){
+      if(sel2.options[i].value === dosage){ sel2.selectedIndex = i; return; }
+    }
+    sel2.selectedIndex = 0;
+  }
+}
+
 function toggleChip(el,wrapId){
   el.classList.toggle('selected');
   if(wrapId)document.getElementById(wrapId).classList.toggle('selected',el.classList.contains('selected'));
@@ -826,7 +928,7 @@ function addMedicine(){
   const p=getAP();
   if(!p){showToast('⚠️ Select a person first');return}
   const name=document.getElementById('medName').value.trim();
-  const dosage=document.getElementById('medDose').value.trim();
+  const dosage=getDosageValue('');
   const duration=document.getElementById('medDuration').value;
   const food=document.getElementById('medFood').value;
   const notes=document.getElementById('medNotes').value.trim();
@@ -839,14 +941,15 @@ function addMedicine(){
     if(sel)slotTimes[c.dataset.val]=sel.value;
   });
   if(!name){showToast('⚠️ Enter medicine name');return}
-  if(!dosage){showToast('⚠️ Enter dosage');return}
+  // dosage always has a value from dropdown
   if(!times.length){showToast('⚠️ Select at least one time');return}
   let meds=getMeds(p.id);
   if(meds.length>=30){showToast('⚠️ Max 30 medicines reached');return}
   meds.push({id:'med_'+Date.now(),name,dosage,duration,food,notes,times,slotTimes,startDate:todayStr(),colorIndex:meds.length,addedAt:Date.now()});
   setMeds(p.id,meds);
   document.getElementById('medName').value='';
-  document.getElementById('medDose').value='';
+  // reset dosage type to tablet default
+  setDoseType('tablet','');
   document.getElementById('medNotes').value='';
   document.querySelectorAll('#timeChips .time-chip').forEach(c=>c.classList.remove('selected'));
   document.querySelectorAll('#timeChips .time-chip-wrap').forEach(w=>w.classList.remove('selected'));
@@ -1057,7 +1160,7 @@ function openEditDose(pid, medId){
   document.getElementById('editMedId').value = medId;
   document.getElementById('editDoseTitle').textContent = 'Edit — ' + med.name;
   document.getElementById('editMedName').value = med.name;
-  document.getElementById('editMedDose').value = med.dosage;
+  setDosageValue(med.dosage, 'edit');
   document.getElementById('editMedDuration').value = med.duration;
   document.getElementById('editMedFood').value = med.food;
   document.getElementById('editMedNotes').value = med.notes||'';
@@ -1067,9 +1170,9 @@ function saveEditedMed(){
   const pid   = document.getElementById('editMedPid').value;
   const medId = document.getElementById('editMedId').value;
   const name  = document.getElementById('editMedName').value.trim();
-  const dosage= document.getElementById('editMedDose').value.trim();
+  const dosage= getDosageValue('edit');
   if(!name)  { showToast('⚠️ Enter medicine name'); return; }
-  if(!dosage){ showToast('⚠️ Enter dosage'); return; }
+  // dosage always has a value from dropdown
   let meds = getMeds(pid);
   const idx = meds.findIndex(m=>m.id===medId);
   if(idx<0) return;
