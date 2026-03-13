@@ -206,6 +206,97 @@
   .history-filter-row::-webkit-scrollbar{display:none}
   .filter-chip{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all 0.15s;flex-shrink:0}
   .filter-chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+
+  /* ===== FULLSCREEN REMINDER ===== */
+  .reminder-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(10,15,30,0.97);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 24px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  .reminder-overlay.visible { opacity: 1; pointer-events: all; }
+
+  .reminder-pulse {
+    width: 100px; height: 100px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(74,222,128,0.25) 0%, transparent 70%);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px; position: relative;
+    animation: pulseRing 2s ease-in-out infinite;
+  }
+  .reminder-pulse::before {
+    content: ''; position: absolute; inset: -10px; border-radius: 50%;
+    border: 2px solid rgba(74,222,128,0.3);
+    animation: pulseRing 2s ease-in-out infinite 0.3s;
+  }
+  .reminder-pulse::after {
+    content: ''; position: absolute; inset: -22px; border-radius: 50%;
+    border: 1.5px solid rgba(74,222,128,0.15);
+    animation: pulseRing 2s ease-in-out infinite 0.6s;
+  }
+  @keyframes pulseRing {
+    0%,100%{ transform: scale(1); opacity:1; }
+    50%    { transform: scale(1.08); opacity:0.7; }
+  }
+  .reminder-emoji { font-size: 44px; line-height: 1; }
+  .reminder-in { font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--accent); margin-bottom: 8px; }
+  .reminder-heading {
+    font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600;
+    color: var(--text); text-align: center; line-height: 1.2; margin-bottom: 6px;
+  }
+  .reminder-slot {
+    font-size: 15px; color: var(--text2); margin-bottom: 28px; text-align: center;
+  }
+  .reminder-meds {
+    width: 100%; max-width: 380px; margin-bottom: 32px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .reminder-med-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 13px 16px;
+  }
+  .reminder-med-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+  }
+  .reminder-med-info { flex: 1; }
+  .reminder-med-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .reminder-med-detail { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .reminder-person-badge {
+    background: var(--accent-soft); border: 1px solid rgba(74,222,128,0.3);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 11px; font-weight: 700; color: var(--accent); white-space: nowrap;
+  }
+  .reminder-dismiss {
+    width: 100%; max-width: 380px; padding: 16px;
+    background: var(--accent); color: #000;
+    border: none; border-radius: 16px;
+    font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 800;
+    cursor: pointer; letter-spacing: 0.3px; transition: opacity 0.2s;
+    margin-bottom: 12px;
+  }
+  .reminder-dismiss:active { opacity: 0.8; }
+  .reminder-snooze {
+    background: none; border: 1px solid var(--border); color: var(--text2);
+    border-radius: 12px; padding: 12px; width: 100%; max-width: 380px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .reminder-snooze:hover { border-color: var(--text3); }
+  .reminder-auto-bar {
+    width: 100%; max-width: 380px; height: 3px;
+    background: var(--surface3); border-radius: 2px; margin-top: 16px; overflow: hidden;
+  }
+  .reminder-auto-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    width: 100%; transform-origin: left;
+    animation: shrinkBar 60s linear forwards;
+  }
+  @keyframes shrinkBar { from{ width:100% } to{ width:0% } }
 </style>
 </head>
 <body>
@@ -1018,30 +1109,190 @@ function init(){
     }
   }
 
-  // Fires when iPhone wakes from sleep or user returns to browser tab
-  document.addEventListener('visibilitychange', function(){
-    if(document.visibilityState === 'visible') checkDateRollover();
-  });
-
-  // Poll every minute to catch midnight if app stays open all night
+  // Poll every minute: date rollover + 30-min advance reminders
   setInterval(function(){
     checkDateRollover();
-    var sh={morning:9,afternoon:13,evening:17,night:20,bedtime:22,emptystomach:7};
-    var h=new Date().getHours(), m=new Date().getMinutes();
+    checkMedicineReminders();
+  }, 60000);
+
+  // Also check immediately on visibility restore (user opens app)
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible'){
+      checkDateRollover();
+      checkMedicineReminders();
+    }
+  });
+}
+
+// ===== REMINDER ENGINE =====
+// Parses "9:30 AM" -> total minutes since midnight
+function timeStrToMins(ts){
+  if(!ts) return -1;
+  var clean = ts.trim();
+  var pm = /PM$/i.test(clean), am = /AM$/i.test(clean);
+  clean = clean.replace(/[APM]/gi,'').trim();
+  var parts = clean.split(':');
+  var h = parseInt(parts[0]), m = parseInt(parts[1]||'0');
+  if(pm && h !== 12) h += 12;
+  if(am && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+// Track which slot+person combos already triggered a reminder today
+var reminderFiredToday = getData('mc_reminderFired', {});
+
+var reminderDismissTimer = null;
+var snoozedUntil = {};  // {pid_slotId: minutesSinceMidnight}
+
+function checkMedicineReminders(){
+  var today = todayStr();
+  if(reminderFiredToday.date !== today){
+    reminderFiredToday = {date: today};
+    setData('mc_reminderFired', reminderFiredToday);
+  }
+
+  var now = new Date();
+  var nowMins = now.getHours()*60 + now.getMinutes();
+
+  // Collect all due reminders (30 min before, within 1-min window)
+  var dueItems = [];
+
+  persons.forEach(function(p){
+    var taken = getTaken(p.id);
+    var todayTaken = taken[today] || {};
+    var meds = getMeds(p.id).filter(isActive);
+
     SLOTS.forEach(function(slot){
-      if(h===sh[slot.id]&&m<5){
-        persons.forEach(function(p){
-          var meds=getMeds(p.id).filter(isActive).filter(function(med){return med.times.includes(slot.id)});
-          if(meds.length&&'Notification'in window&&Notification.permission==='granted'){
-            new Notification('Medicines: '+p.name+' - '+slot.label,{body:meds.map(function(m){return m.name}).join(', ')});
-          }
-        });
-      }
+      var slotMeds = meds.filter(function(m){ return m.times.includes(slot.id); });
+      if(!slotMeds.length) return;
+
+      // Determine the scheduled time for this slot
+      // Use first medicine's slotTimes if available, else slot default
+      var timeStr = (slotMeds[0].slotTimes && slotMeds[0].slotTimes[slot.id]) || slot.time;
+      var scheduledMins = timeStrToMins(timeStr);
+      if(scheduledMins < 0) return;
+
+      var reminderMins = scheduledMins - 30;
+      if(reminderMins < 0) reminderMins += 1440; // handle midnight wrap
+
+      var fireKey = p.id + '_' + slot.id;
+
+      // Check snooze
+      if(snoozedUntil[fireKey] && nowMins < snoozedUntil[fireKey]) return;
+
+      // Fire window: exact minute match (nowMins === reminderMins)
+      if(nowMins !== reminderMins) return;
+
+      // Don't re-fire if already shown today
+      if(reminderFiredToday[fireKey]) return;
+
+      // Check if all meds in this slot are already taken
+      var allTaken = slotMeds.every(function(med){
+        return !!todayTaken[med.id + '_' + slot.id];
+      });
+      if(allTaken) return;
+
+      // Filter to only untaken meds
+      var untaken = slotMeds.filter(function(med){
+        return !todayTaken[med.id + '_' + slot.id];
+      });
+
+      dueItems.push({p: p, slot: slot, meds: untaken, timeStr: timeStr, fireKey: fireKey});
+      reminderFiredToday[fireKey] = true;
     });
-  },60000);
+  });
+
+  setData('mc_reminderFired', reminderFiredToday);
+
+  if(dueItems.length > 0){
+    showReminderOverlay(dueItems);
+  }
+}
+
+function showReminderOverlay(items){
+  // Build heading from unique slot names
+  var slots = [...new Set(items.map(function(i){ return i.slot.icon + ' ' + i.slot.label; }))];
+  var times = [...new Set(items.map(function(i){ return i.timeStr; }))];
+  document.getElementById('reminderHeading').textContent = slots.join(' & ') + ' medicines';
+  document.getElementById('reminderSlot').textContent = 'Scheduled at ' + times.join(', ');
+
+  // Build med rows
+  var multi = persons.length > 1;
+  var html = '';
+  items.forEach(function(item){
+    item.meds.forEach(function(med){
+      var ci = med.colorIndex % 8;
+      var icons = ['💊','💉','🧪','🌿','🔵','🔴','🟡','🟠'];
+      html += '<div class="reminder-med-row">'
+        + '<div class="reminder-med-icon color-' + ci + '">' + icons[ci] + '</div>'
+        + '<div class="reminder-med-info">'
+        + '<div class="reminder-med-name">' + med.name + '</div>'
+        + '<div class="reminder-med-detail">' + med.dosage + ' · ' + med.food + '</div>'
+        + '</div>'
+        + (multi ? '<div class="reminder-person-badge">' + item.p.name.split(' ')[0] + '</div>' : '')
+        + '</div>';
+    });
+  });
+  document.getElementById('reminderMeds').innerHTML = html;
+
+  // Store items for snooze
+  window._currentReminderItems = items;
+
+  // Reset auto-dismiss bar animation
+  var fill = document.getElementById('reminderAutoFill');
+  fill.style.animation = 'none';
+  fill.offsetHeight; // reflow
+  fill.style.animation = 'shrinkBar 60s linear forwards';
+
+  // Show overlay
+  var overlay = document.getElementById('reminderOverlay');
+  overlay.classList.add('visible');
+
+  // Vibrate if supported
+  if(navigator.vibrate) navigator.vibrate([300, 100, 300]);
+
+  // Auto-dismiss after 60s
+  clearTimeout(reminderDismissTimer);
+  reminderDismissTimer = setTimeout(dismissReminder, 60000);
+}
+
+function dismissReminder(){
+  clearTimeout(reminderDismissTimer);
+  document.getElementById('reminderOverlay').classList.remove('visible');
+  window._currentReminderItems = null;
+}
+
+function snoozeReminder(){
+  clearTimeout(reminderDismissTimer);
+  var now = new Date();
+  var snoozeMins = now.getHours()*60 + now.getMinutes() + 10;
+  if(window._currentReminderItems){
+    window._currentReminderItems.forEach(function(item){
+      snoozedUntil[item.fireKey] = snoozeMins;
+      // Also un-fire so it can re-trigger after snooze
+      delete reminderFiredToday[item.fireKey];
+    });
+    setData('mc_reminderFired', reminderFiredToday);
+  }
+  document.getElementById('reminderOverlay').classList.remove('visible');
+  showToast('⏰ Snoozed for 10 minutes');
 }
 
 init();
 </script>
+
+<!-- FULLSCREEN REMINDER OVERLAY -->
+<div class="reminder-overlay" id="reminderOverlay">
+  <div class="reminder-pulse">
+    <div class="reminder-emoji">💊</div>
+  </div>
+  <div class="reminder-in">In 30 minutes</div>
+  <div class="reminder-heading" id="reminderHeading">Time to prepare</div>
+  <div class="reminder-slot" id="reminderSlot"></div>
+  <div class="reminder-meds" id="reminderMeds"></div>
+  <button class="reminder-dismiss" onclick="dismissReminder()">Got it!</button>
+  <button class="reminder-snooze" onclick="snoozeReminder()">⏰ Remind me in 10 min</button>
+  <div class="reminder-auto-bar"><div class="reminder-auto-fill" id="reminderAutoFill"></div></div>
+</div>
 </body>
 </html>
