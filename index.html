@@ -806,6 +806,9 @@ function renderToday(){
         <button onclick="openEditDose('${p.id}','${med.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 6px;border-radius:8px;transition:color 0.2s;flex-shrink:0" title="Edit">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
+        <button onclick="deleteTodayMed('${p.id}','${med.id}','${med.name.replace(/'/g,"\\'")}','${slot.label}')" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px 6px;border-radius:8px;transition:color 0.2s;flex-shrink:0" title="Delete">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
         <div class="check-btn ${isTaken?'done':''}" onclick="toggleDose('${p.id}','${med.id}','${slot.id}','${med.name.replace(/'/g,"\\'")}','${slot.label}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="${isTaken?'#000':'var(--text3)'}" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
@@ -847,6 +850,21 @@ function toggleDose(pid,medId,slotId,medName,slotName){
     showToast(`↩️ ${medName} unmarked`);
   }
   setTaken(pid,taken);setHist(pid,hist);renderToday();
+}
+
+function deleteTodayMed(pid, medId, medName){
+  if(!confirm('Remove "' + medName + '" from prescription?\n\nThis deletes it permanently.')) return;
+  setMeds(pid, getMeds(pid).filter(function(m){ return m.id !== medId; }));
+  var today = todayStr();
+  var taken = getTaken(pid);
+  if(taken[today]){
+    Object.keys(taken[today]).forEach(function(k){ if(k.indexOf(medId+'_')===0) delete taken[today][k]; });
+    setTaken(pid, taken);
+  }
+  setHist(pid, getHist(pid).filter(function(h){ return h.medId !== medId; }));
+  showToast('\uD83D\uDDD1\uFE0F ' + medName + ' removed');
+  renderToday();
+  renderRx();
 }
 
 // ===== BP =====
