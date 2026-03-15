@@ -1349,10 +1349,8 @@ function init(){
   if(!persons.find(p=>p.id===activePid)){activePid=persons[0]?.id||null;setData('mc_activePid',activePid)}
 
   // Unlock Web Audio on first touch (required by iOS Safari)
-  document.addEventListener('touchstart', function unlockAudio(){
-    try { getAudioCtx().resume(); } catch(e){}
-    document.removeEventListener('touchstart', unlockAudio);
-  }, {once: true});
+  // Unlock Web Audio on first user touch (required by iOS Safari)
+  document.addEventListener('touchstart', function(){ try{ if(!_actx) _actx=new(window.AudioContext||window.webkitAudioContext)(); _actx.resume(); }catch(e){} }, {once:true});
 
   renderStrip();renderToday();
   if('Notification'in window)Notification.requestPermission();
@@ -1401,98 +1399,60 @@ function init(){
 
 function timeStrToMins(ts){
   if(!ts) return -1;
-  var clean = ts.trim().toUpperCase();
-  var isPM = clean.indexOf('PM') >= 0;
-  var isAM = clean.indexOf('AM') >= 0;
-  clean = clean.replace(/[APM\s]/g,'');
-  var parts = clean.split(':');
-  var h = parseInt(parts[0])||0, m = parseInt(parts[1]||'0')||0;
-  if(isPM && h !== 12) h += 12;
-  if(isAM && h === 12) h = 0;
-  if(h < 0 || h > 23 || m < 0 || m > 59) return -1;
-  return h * 60 + m;
+  ts = ts.trim().toUpperCase();
+  var pm = ts.indexOf('PM') >= 0, am = ts.indexOf('AM') >= 0;
+  ts = ts.replace(/[APMPM\s]/g,'');
+  var p = ts.split(':'), h = parseInt(p[0])||0, m = parseInt(p[1]||0)||0;
+  if(pm && h !== 12) h += 12;
+  if(am && h === 12) h = 0;
+  return (h >= 0 && h <= 23 && m >= 0 && m <= 59) ? h*60+m : -1;
 }
 
-// Fired keys stored per day — reset when date changes
-var _reminderState = getData('mc_reminderState', {date:'', fired:{}});
+// Simple: remember which alerts were shown today so we don't repeat
+// Key = "pid_slotId_type"  value = true
+var _shownToday = {};
+var _lastShownDate = '';
 
-function getReminderState(){
-  var today = todayStr();
-  if(_reminderState.date !== today){
-    _reminderState = {date: today, fired: {}};
-    setData('mc_reminderState', _reminderState);
-  }
-  return _reminderState;
+function resetShownIfNewDay(){
+  var t = todayStr();
+  if(t !== _lastShownDate){ _shownToday = {}; _lastShownDate = t; }
 }
 
-function markFired(key){
-  var st = getReminderState();
-  st.fired[key] = Date.now();
-  setData('mc_reminderState', st);
-}
-
-function wasFired(key){
-  var st = getReminderState();
-  // Consider fired if triggered in the last 90 minutes
-  return st.fired[key] && (Date.now() - st.fired[key]) < 90 * 60 * 1000;
-}
-
-var reminderDismissTimer = null;
 var _overlayVisible = false;
+var reminderDismissTimer = null;
 
 // ===== BUZZER =====
-var _audioCtx = null;
-function getAudioCtx(){
+var _actx = null;
+function buzz(urgent){
   try {
-    if(!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    return _audioCtx;
-  } catch(e){ return null; }
-}
-
-function playBuzzer(urgent){
-  try {
-    var ctx = getAudioCtx();
-    if(!ctx) return;
-    if(ctx.state === 'suspended') ctx.resume();
-    var now = ctx.currentTime;
-    var pattern = urgent
-      ? [{f:880,t:0,d:0.12},{f:880,t:0.15,d:0.12},{f:1100,t:0.30,d:0.15},
-         {f:880,t:0.55,d:0.12},{f:880,t:0.68,d:0.12},{f:1100,t:0.83,d:0.15},
-         {f:660,t:1.10,d:0.30}]
-      : [{f:660,t:0,d:0.18},{f:880,t:0.25,d:0.22}];
-    pattern.forEach(function(n){
-      var osc = ctx.createOscillator();
-      var gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = urgent ? 'sawtooth' : 'sine';
-      osc.frequency.value = n.f;
-      gain.gain.setValueAtTime(0.4, now + n.t);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
-      osc.start(now + n.t);
-      osc.stop(now + n.t + n.d + 0.05);
+    if(!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+    if(_actx.state === 'suspended') _actx.resume();
+    var t = _actx.currentTime;
+    var notes = urgent
+      ? [[880,0,.15],[880,.2,.15],[1100,.4,.2],[880,.7,.15],[880,.9,.15],[1100,1.1,.25]]
+      : [[660,0,.2],[880,.3,.25]];
+    notes.forEach(function(n){
+      var o = _actx.createOscillator(), g = _actx.createGain();
+      o.connect(g); g.connect(_actx.destination);
+      o.type = urgent ? 'sawtooth' : 'sine';
+      o.frequency.value = n[0];
+      g.gain.setValueAtTime(0.45, t+n[1]);
+      g.gain.exponentialRampToValueAtTime(0.001, t+n[1]+n[2]);
+      o.start(t+n[1]); o.stop(t+n[1]+n[2]+.05);
     });
-  } catch(e){ console.warn('Buzzer error:', e); }
+  } catch(e){}
 }
 
-// ===== MAIN REMINDER CHECK =====
-// Uses a ±2 minute window so missed polls are caught on next check
+// ===== MAIN CHECK — runs every 30s and on every app open =====
 function checkMedicineReminders(){
+  resetShownIfNewDay();
   var today = todayStr();
-  var now = new Date();
-  var nowMins = now.getHours()*60 + now.getMinutes();
+  var nowMins = new Date().getHours()*60 + new Date().getMinutes();
 
-  // We collect items into buckets by urgency.
-  // Key rule: if time has PASSED and medicine is still untaken → fire alert.
-  // We use a per-day fired-key store so each slot only alerts once per day
-  // (unless snoozed, which deletes the key to allow re-fire).
-
-  var overdueItems  = [];   // past scheduled time, not taken
-  var dueNowItems   = [];   // within 1 min of scheduled time
-  var advanceItems  = [];   // ~30 min before scheduled time
+  var toShow = []; // [{mode, items:[{p,slot,meds,timeStr,minsLate}]}]
 
   persons.forEach(function(p){
-    var taken = getTaken(p.id);
-    var todayTaken = taken[today] || {};
+    var todayTaken = (getTaken(p.id)[today]) || {};
     var meds = getMeds(p.id).filter(isActive);
 
     SLOTS.forEach(function(slot){
@@ -1500,133 +1460,115 @@ function checkMedicineReminders(){
       if(!slotMeds.length) return;
 
       var timeStr = (slotMeds[0].slotTimes && slotMeds[0].slotTimes[slot.id]) || slot.time;
-      var scheduledMins = timeStrToMins(timeStr);
-      if(scheduledMins < 0) return;
+      var schMin = timeStrToMins(timeStr);
+      if(schMin < 0) return;
 
-      // Collect untaken medicines for this slot
-      var untaken = slotMeds.filter(function(med){
-        return !todayTaken[med.id + '_' + slot.id];
-      });
-      if(!untaken.length) return;  // all taken — nothing to alert
+      // Only care about untaken medicines
+      var untaken = slotMeds.filter(function(m){ return !todayTaken[m.id+'_'+slot.id]; });
+      if(!untaken.length) return;
 
-      var item = {p:p, slot:slot, meds:untaken, timeStr:timeStr};
-      var minsLate = nowMins - scheduledMins;  // positive = past due, negative = not yet
+      var diff = nowMins - schMin;   // positive = past due
 
-      // ── OVERDUE: time has passed by 10+ min ─────────────────────────────
-      if(minsLate >= 10){
-        var lateKey = 'late_'+p.id+'_'+slot.id;
-        if(!wasFired(lateKey)){
-          markFired(lateKey);
-          overdueItems.push(Object.assign({}, item, {fireKey:lateKey, minsLate:minsLate}));
+      // ── Past due (time already passed, not taken) ────────────────────
+      if(diff >= 0){
+        var key = p.id+'_'+slot.id+'_overdue';
+        if(!_shownToday[key]){
+          _shownToday[key] = true;
+          toShow.push({mode: diff >= 10 ? 'overdue' : 'duenow',
+            items:[{p:p, slot:slot, meds:untaken, timeStr:timeStr, minsLate:diff}]});
         }
         return;
       }
 
-      // ── DUE NOW: time just arrived (0–9 min past) ───────────────────────
-      if(minsLate >= 0){
-        var nowKey = 'now_'+p.id+'_'+slot.id;
-        if(!wasFired(nowKey)){
-          markFired(nowKey);
-          dueNowItems.push(Object.assign({}, item, {fireKey:nowKey}));
-        }
-        return;
-      }
-
-      // ── ADVANCE: 30 min warning ─────────────────────────────────────────
-      var advMins = scheduledMins - 30;
-      if(advMins < 0) advMins += 1440;
-      var advDiff = nowMins - advMins;
-      if(advDiff >= 0 && advDiff <= 4){   // within 4-min window
-        var advKey = 'adv_'+p.id+'_'+slot.id;
-        if(!wasFired(advKey)){
-          markFired(advKey);
-          advanceItems.push(Object.assign({}, item, {fireKey:advKey}));
+      // ── 30-min advance warning ────────────────────────────────────────
+      if(diff >= -31 && diff <= -28){
+        var advKey = p.id+'_'+slot.id+'_advance';
+        if(!_shownToday[advKey]){
+          _shownToday[advKey] = true;
+          toShow.push({mode:'advance',
+            items:[{p:p, slot:slot, meds:untaken, timeStr:timeStr, minsLate:0}]});
         }
       }
     });
   });
 
-  // Show highest-priority alert (overdue wins, then due-now, then advance)
-  if(overdueItems.length > 0){
-    showReminderOverlay(overdueItems, 'overdue');
-  } else if(dueNowItems.length > 0){
-    showReminderOverlay(dueNowItems, 'duenow');
-  } else if(advanceItems.length > 0){
-    showReminderOverlay(advanceItems, 'advance');
-  }
+  if(!toShow.length) return;
+  if(_overlayVisible) return;
+
+  // Pick highest priority to show first
+  var pick = toShow.find(function(x){ return x.mode==='overdue'; })
+          || toShow.find(function(x){ return x.mode==='duenow'; })
+          || toShow[0];
+
+  showAlert(pick.mode, pick.items);
 }
 
-function showReminderOverlay(items, mode){
-  if(_overlayVisible) return; // don't stack overlays
+function showAlert(mode, items){
+  if(_overlayVisible) return;
+  _overlayVisible = true;
 
-  var overlay = document.getElementById('reminderOverlay');
-  overlay.classList.remove('due-now','overdue');
+  var ov = document.getElementById('reminderOverlay');
+  ov.classList.remove('due-now','overdue');
 
-  var slots = [];
+  var slotNames = [], times = [];
   items.forEach(function(i){
-    var lbl = i.slot.icon+' '+i.slot.label;
-    if(slots.indexOf(lbl) < 0) slots.push(lbl);
+    var s = i.slot.icon+' '+i.slot.label;
+    if(slotNames.indexOf(s)<0) slotNames.push(s);
+    if(times.indexOf(i.timeStr)<0) times.push(i.timeStr);
   });
-  var times = [];
-  items.forEach(function(i){ if(times.indexOf(i.timeStr)<0) times.push(i.timeStr); });
 
   if(mode === 'overdue'){
-    var maxLate = 0;
-    items.forEach(function(i){ if((i.minsLate||0) > maxLate) maxLate = i.minsLate||0; });
-    var lateLabel = maxLate >= 60
-      ? Math.floor(maxLate/60)+'h '+( maxLate%60 ? (maxLate%60)+'m ' : '')+'overdue'
-      : maxLate+' min overdue';
-    document.getElementById('reminderIn').textContent      = '🚨 MEDICINE OVERDUE — ' + lateLabel.toUpperCase();
-    document.getElementById('reminderHeading').textContent = 'Take now: ' + slots.join(' & ');
+    var minsLate = items[0].minsLate || 0;
+    var lateStr = minsLate >= 60
+      ? Math.floor(minsLate/60)+'h '+(minsLate%60 ? minsLate%60+'m' : '') + ' late'
+      : minsLate+' min late';
+    document.getElementById('reminderIn').textContent      = '🚨 MEDICINE OVERDUE — ' + lateStr.toUpperCase();
+    document.getElementById('reminderHeading').textContent = 'Take Now: ' + slotNames.join(' & ');
     document.getElementById('reminderSlot').textContent    = 'Was due at ' + times.join(', ');
-    overlay.classList.add('overdue');
-    playBuzzer(true);
-    if(navigator.vibrate) navigator.vibrate([500,100,500,100,500,200,800]);
+    ov.classList.add('overdue');
+    buzz(true);
+    if(navigator.vibrate) navigator.vibrate([500,100,500,100,600,200,800]);
   } else if(mode === 'duenow'){
     document.getElementById('reminderIn').textContent      = '⏰ TIME TO TAKE YOUR MEDICINE';
-    document.getElementById('reminderHeading').textContent = slots.join(' & ') + ' Time';
+    document.getElementById('reminderHeading').textContent = slotNames.join(' & ') + ' Time';
     document.getElementById('reminderSlot').textContent    = 'Scheduled: ' + times.join(', ');
-    overlay.classList.add('due-now');
-    playBuzzer(false);
-    if(navigator.vibrate) navigator.vibrate([300,100,300]);
+    ov.classList.add('due-now');
+    buzz(false);
+    if(navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
   } else {
-    document.getElementById('reminderIn').textContent      = '⏱ In 30 Minutes';
-    document.getElementById('reminderHeading').textContent = 'Upcoming: ' + slots.join(' & ');
-    document.getElementById('reminderSlot').textContent    = 'Due at ' + times.join(', ');
-    if(navigator.vibrate) navigator.vibrate([200]);
+    document.getElementById('reminderIn').textContent      = '⏱ Coming up in 30 minutes';
+    document.getElementById('reminderHeading').textContent = slotNames.join(' & ') + ' upcoming';
+    document.getElementById('reminderSlot').textContent    = 'Prepare for ' + times.join(', ');
+    if(navigator.vibrate) navigator.vibrate([150]);
   }
 
-  // Build med list
+  // Build medicine rows
   var multi = persons.length > 1;
   var html = '';
   items.forEach(function(item){
     item.meds.forEach(function(med){
-      var ci = med.colorIndex % 8;
+      var ci = med.colorIndex%8;
       var icons = ['💊','💉','🧪','🌿','🔵','🔴','🟡','🟠'];
       html += '<div class="reminder-med-row">'
-        + '<div class="reminder-med-icon color-'+ci+'">'+icons[ci]+'</div>'
-        + '<div class="reminder-med-info">'
-        + '<div class="reminder-med-name">'+med.name+'</div>'
-        + '<div class="reminder-med-detail">'+med.dosage+' &middot; '+med.food+'</div>'
-        + '</div>'
-        + (multi ? '<div class="reminder-person-badge">'+item.p.name.split(' ')[0]+'</div>' : '')
-        + '</div>';
+        +'<div class="reminder-med-icon color-'+ci+'">'+icons[ci]+'</div>'
+        +'<div class="reminder-med-info">'
+        +'<div class="reminder-med-name">'+med.name+'</div>'
+        +'<div class="reminder-med-detail">'+med.dosage+' · '+med.food+'</div>'
+        +'</div>'
+        +(multi?'<div class="reminder-person-badge">'+item.p.name.split(' ')[0]+'</div>':'')
+        +'</div>';
     });
   });
   document.getElementById('reminderMeds').innerHTML = html;
-
-  window._currentReminderItems = items;
+  window._alertItems = items;
+  window._alertMode  = mode;
 
   // Animate countdown bar
   var fill = document.getElementById('reminderAutoFill');
-  fill.style.animation = 'none';
-  fill.offsetHeight;
+  fill.style.animation = 'none'; fill.offsetHeight;
   fill.style.animation = 'shrinkBar 60s linear forwards';
 
-  _overlayVisible = true;
-  overlay.classList.add('visible');
-
-  // Auto-dismiss after 60s
+  ov.classList.add('visible');
   clearTimeout(reminderDismissTimer);
   reminderDismissTimer = setTimeout(dismissReminder, 60000);
 }
@@ -1635,45 +1577,36 @@ function dismissReminder(){
   clearTimeout(reminderDismissTimer);
   _overlayVisible = false;
   document.getElementById('reminderOverlay').classList.remove('visible');
-  window._currentReminderItems = null;
 }
 
 function snoozeReminder(){
   clearTimeout(reminderDismissTimer);
   _overlayVisible = false;
-  // Un-fire snoozed keys so they re-trigger in 10 min
-  if(window._currentReminderItems){
-    var snoozeUntil = Date.now() + 10*60*1000;
-    window._currentReminderItems.forEach(function(item){
-      var st = getReminderState();
-      // Overwrite fired time to 60 min ago so window passes, then snooze reschedules
-      delete st.fired[item.fireKey];
-      setData('mc_reminderState', st);
-      _reminderState = st;
+  document.getElementById('reminderOverlay').classList.remove('visible');
+  // Remove shown keys so the alert re-fires after ~10 min
+  if(window._alertItems){
+    window._alertItems.forEach(function(item){
+      var base = item.p.id+'_'+item.slot.id;
+      delete _shownToday[base+'_overdue'];
+      delete _shownToday[base+'_advance'];
     });
   }
-  document.getElementById('reminderOverlay').classList.remove('visible');
-  showToast('⏰ Snoozed for 10 minutes');
+  showToast('⏰ Snoozed — will remind again in 10 min');
+  // Recheck after 10 min
+  setTimeout(checkMedicineReminders, 10*60*1000);
 }
 
-// ===== TEST REMINDER (for verification) =====
 function testReminder(){
   var p = getAP();
-  if(!p){ showToast('⚠️ Add a person first'); return; }
+  if(!p){ showToast('⚠️ Add a family member first'); return; }
   var meds = getMeds(p.id).filter(isActive);
-  if(!meds.length){ showToast('⚠️ Add medicines first'); return; }
-  // Build a fake due-now alert using real medicines
-  var fakeItems = [];
-  SLOTS.forEach(function(slot){
-    var sm = meds.filter(function(m){ return m.times.includes(slot.id); });
-    if(sm.length){
-      fakeItems.push({p:p, slot:slot, meds:sm, timeStr:'Now', fireKey:'test_'+slot.id});
-    }
-  });
-  if(!fakeItems.length) fakeItems = [{p:p, slot:SLOTS[0], meds:meds.slice(0,2), timeStr:'Now', fireKey:'test'}];
-  _overlayVisible = false; // force show even if already visible
-  showReminderOverlay(fakeItems.slice(0,1), 'duenow');
+  if(!meds.length){ showToast('⚠️ Add medicines in Rx tab first'); return; }
+  var slot = SLOTS.find(function(s){ return meds.some(function(m){ return m.times.includes(s.id); }); }) || SLOTS[0];
+  var slotMeds = meds.filter(function(m){ return m.times.includes(slot.id); });
+  _overlayVisible = false;
+  showAlert('duenow', [{p:p, slot:slot, meds:slotMeds.slice(0,3), timeStr:'Now', minsLate:0}]);
 }
+
 
 init();
 </script>
