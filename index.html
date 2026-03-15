@@ -1481,7 +1481,14 @@ function checkMedicineReminders(){
   var now = new Date();
   var nowMins = now.getHours()*60 + now.getMinutes();
 
-  var overdueItems = [], dueNowItems = [], advanceItems = [];
+  // We collect items into buckets by urgency.
+  // Key rule: if time has PASSED and medicine is still untaken → fire alert.
+  // We use a per-day fired-key store so each slot only alerts once per day
+  // (unless snoozed, which deletes the key to allow re-fire).
+
+  var overdueItems  = [];   // past scheduled time, not taken
+  var dueNowItems   = [];   // within 1 min of scheduled time
+  var advanceItems  = [];   // ~30 min before scheduled time
 
   persons.forEach(function(p){
     var taken = getTaken(p.id);
@@ -1496,44 +1503,50 @@ function checkMedicineReminders(){
       var scheduledMins = timeStrToMins(timeStr);
       if(scheduledMins < 0) return;
 
-      // Only include untaken meds
+      // Collect untaken medicines for this slot
       var untaken = slotMeds.filter(function(med){
         return !todayTaken[med.id + '_' + slot.id];
       });
-      if(!untaken.length) return;
+      if(!untaken.length) return;  // all taken — nothing to alert
 
       var item = {p:p, slot:slot, meds:untaken, timeStr:timeStr};
+      var minsLate = nowMins - scheduledMins;  // positive = past due, negative = not yet
 
-      // OVERDUE: +8 to +12 min window
-      var lateKey = 'late_'+p.id+'_'+slot.id;
-      var lateDiff = nowMins - (scheduledMins + 10);
-      if(Math.abs(lateDiff) <= 2 && !wasFired(lateKey)){
-        markFired(lateKey);
-        overdueItems.push(Object.assign({}, item, {fireKey:lateKey}));
+      // ── OVERDUE: time has passed by 10+ min ─────────────────────────────
+      if(minsLate >= 10){
+        var lateKey = 'late_'+p.id+'_'+slot.id;
+        if(!wasFired(lateKey)){
+          markFired(lateKey);
+          overdueItems.push(Object.assign({}, item, {fireKey:lateKey, minsLate:minsLate}));
+        }
         return;
       }
 
-      // DUE NOW: -1 to +1 min window
-      var nowKey = 'now_'+p.id+'_'+slot.id;
-      var nowDiff = nowMins - scheduledMins;
-      if(Math.abs(nowDiff) <= 1 && !wasFired(nowKey)){
-        markFired(nowKey);
-        dueNowItems.push(Object.assign({}, item, {fireKey:nowKey}));
+      // ── DUE NOW: time just arrived (0–9 min past) ───────────────────────
+      if(minsLate >= 0){
+        var nowKey = 'now_'+p.id+'_'+slot.id;
+        if(!wasFired(nowKey)){
+          markFired(nowKey);
+          dueNowItems.push(Object.assign({}, item, {fireKey:nowKey}));
+        }
         return;
       }
 
-      // ADVANCE: 28–32 min before
-      var advKey = 'adv_'+p.id+'_'+slot.id;
+      // ── ADVANCE: 30 min warning ─────────────────────────────────────────
       var advMins = scheduledMins - 30;
       if(advMins < 0) advMins += 1440;
       var advDiff = nowMins - advMins;
-      if(Math.abs(advDiff) <= 2 && !wasFired(advKey)){
-        markFired(advKey);
-        advanceItems.push(Object.assign({}, item, {fireKey:advKey}));
+      if(advDiff >= 0 && advDiff <= 4){   // within 4-min window
+        var advKey = 'adv_'+p.id+'_'+slot.id;
+        if(!wasFired(advKey)){
+          markFired(advKey);
+          advanceItems.push(Object.assign({}, item, {fireKey:advKey}));
+        }
       }
     });
   });
 
+  // Show highest-priority alert (overdue wins, then due-now, then advance)
   if(overdueItems.length > 0){
     showReminderOverlay(overdueItems, 'overdue');
   } else if(dueNowItems.length > 0){
@@ -1558,8 +1571,13 @@ function showReminderOverlay(items, mode){
   items.forEach(function(i){ if(times.indexOf(i.timeStr)<0) times.push(i.timeStr); });
 
   if(mode === 'overdue'){
-    document.getElementById('reminderIn').textContent      = '🚨 OVERDUE — PLEASE TAKE NOW';
-    document.getElementById('reminderHeading').textContent = 'Missed: ' + slots.join(' & ');
+    var maxLate = 0;
+    items.forEach(function(i){ if((i.minsLate||0) > maxLate) maxLate = i.minsLate||0; });
+    var lateLabel = maxLate >= 60
+      ? Math.floor(maxLate/60)+'h '+( maxLate%60 ? (maxLate%60)+'m ' : '')+'overdue'
+      : maxLate+' min overdue';
+    document.getElementById('reminderIn').textContent      = '🚨 MEDICINE OVERDUE — ' + lateLabel.toUpperCase();
+    document.getElementById('reminderHeading').textContent = 'Take now: ' + slots.join(' & ');
     document.getElementById('reminderSlot').textContent    = 'Was due at ' + times.join(', ');
     overlay.classList.add('overdue');
     playBuzzer(true);
