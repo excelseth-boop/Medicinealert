@@ -318,6 +318,33 @@
   }
   .dosage-select-row { display: none; }
   .dosage-select-row.visible { display: block; }
+
+  /* ===== DUE-NOW ALERT (on-time reminder) ===== */
+  .reminder-overlay.due-now { background: rgba(8,10,18,0.98); }
+  .reminder-overlay.due-now .reminder-pulse {
+    background: radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%);
+    animation: pulseRingAmber 1.2s ease-in-out infinite;
+  }
+  .reminder-overlay.due-now .reminder-pulse::before {
+    border-color: rgba(251,191,36,0.45);
+    animation: pulseRingAmber 1.2s ease-in-out infinite 0.2s;
+  }
+  .reminder-overlay.due-now .reminder-pulse::after {
+    border-color: rgba(251,191,36,0.2);
+    animation: pulseRingAmber 1.2s ease-in-out infinite 0.4s;
+  }
+  @keyframes pulseRingAmber {
+    0%,100%{ transform:scale(1);opacity:1 }
+    50%     { transform:scale(1.12);opacity:0.7 }
+  }
+  .reminder-overlay.due-now .reminder-in  { color: var(--amber); letter-spacing:3px; font-size:15px; }
+  .reminder-overlay.due-now .reminder-heading { font-size:32px; }
+  .reminder-overlay.due-now .reminder-dismiss { background: var(--amber); }
+  .reminder-overlay.due-now .reminder-auto-fill { background: var(--amber); }
+  .reminder-overlay.due-now .reminder-med-row {
+    border-color: rgba(251,191,36,0.3);
+    background: rgba(251,191,36,0.08);
+  }
 </style>
 </head>
 <body>
@@ -1331,8 +1358,9 @@ function timeStrToMins(ts){
   return h * 60 + m;
 }
 
-// Track which slot+person combos already triggered a reminder today
-var reminderFiredToday = getData('mc_reminderFired', {});
+// Track which slot+person combos already triggered reminders today
+var reminderFiredToday = getData('mc_reminderFired', {});   // 30-min advance
+var dueNowFiredToday   = getData('mc_dueNowFired',   {});   // on-time alert
 
 var reminderDismissTimer = null;
 var snoozedUntil = {};  // {pid_slotId: minutesSinceMidnight}
@@ -1397,17 +1425,79 @@ function checkMedicineReminders(){
 
   setData('mc_reminderFired', reminderFiredToday);
 
-  if(dueItems.length > 0){
-    showReminderOverlay(dueItems);
+  // ── ON-TIME alerts: fire exactly at the scheduled minute ──────────────────
+  if(dueNowFiredToday.date !== today){
+    dueNowFiredToday = {date: today};
+    setData('mc_dueNowFired', dueNowFiredToday);
+  }
+
+  var dueNowItems = [];
+
+  persons.forEach(function(p){
+    var taken = getTaken(p.id);
+    var todayTaken = taken[today] || {};
+    var meds = getMeds(p.id).filter(isActive);
+
+    SLOTS.forEach(function(slot){
+      var slotMeds = meds.filter(function(m){ return m.times.includes(slot.id); });
+      if(!slotMeds.length) return;
+
+      var timeStr = (slotMeds[0].slotTimes && slotMeds[0].slotTimes[slot.id]) || slot.time;
+      var scheduledMins = timeStrToMins(timeStr);
+      if(scheduledMins < 0) return;
+
+      var fireKey = 'now_' + p.id + '_' + slot.id;
+
+      // Check snooze (shared snoozedUntil object, keyed with 'now_' prefix)
+      if(snoozedUntil[fireKey] && nowMins < snoozedUntil[fireKey]) return;
+
+      // Fire exactly at scheduled minute
+      if(nowMins !== scheduledMins) return;
+
+      if(dueNowFiredToday[fireKey]) return;
+
+      // Skip if all already taken
+      var allTaken = slotMeds.every(function(med){
+        return !!todayTaken[med.id + '_' + slot.id];
+      });
+      if(allTaken) return;
+
+      var untaken = slotMeds.filter(function(med){
+        return !todayTaken[med.id + '_' + slot.id];
+      });
+
+      dueNowItems.push({p: p, slot: slot, meds: untaken, timeStr: timeStr, fireKey: fireKey});
+      dueNowFiredToday[fireKey] = true;
+    });
+  });
+
+  setData('mc_dueNowFired', dueNowFiredToday);
+
+  // Show whichever is due — on-time takes priority over advance
+  if(dueNowItems.length > 0){
+    showReminderOverlay(dueNowItems, true);
+  } else if(dueItems.length > 0){
+    showReminderOverlay(dueItems, false);
   }
 }
 
-function showReminderOverlay(items){
+function showReminderOverlay(items, isDueNow){
   // Build heading from unique slot names
   var slots = [...new Set(items.map(function(i){ return i.slot.icon + ' ' + i.slot.label; }))];
   var times = [...new Set(items.map(function(i){ return i.timeStr; }))];
-  document.getElementById('reminderHeading').textContent = slots.join(' & ') + ' medicines';
-  document.getElementById('reminderSlot').textContent = 'Scheduled at ' + times.join(', ');
+  var overlay = document.getElementById('reminderOverlay');
+
+  if(isDueNow){
+    document.getElementById('reminderIn').textContent   = '⏰ TIME TO TAKE NOW';
+    document.getElementById('reminderHeading').textContent = slots.join(' & ') + ' Medicines';
+    document.getElementById('reminderSlot').textContent = 'Due at ' + times.join(', ');
+    overlay.classList.add('due-now');
+  } else {
+    document.getElementById('reminderIn').textContent   = 'In 30 minutes';
+    document.getElementById('reminderHeading').textContent = slots.join(' & ') + ' medicines';
+    document.getElementById('reminderSlot').textContent = 'Scheduled at ' + times.join(', ');
+    overlay.classList.remove('due-now');
+  }
 
   // Build med rows
   var multi = persons.length > 1;
@@ -1438,7 +1528,6 @@ function showReminderOverlay(items){
   fill.style.animation = 'shrinkBar 60s linear forwards';
 
   // Show overlay
-  var overlay = document.getElementById('reminderOverlay');
   overlay.classList.add('visible');
 
   // Vibrate if supported
@@ -1462,10 +1551,14 @@ function snoozeReminder(){
   if(window._currentReminderItems){
     window._currentReminderItems.forEach(function(item){
       snoozedUntil[item.fireKey] = snoozeMins;
-      // Also un-fire so it can re-trigger after snooze
-      delete reminderFiredToday[item.fireKey];
+      if(item.fireKey.indexOf('now_') === 0){
+        delete dueNowFiredToday[item.fireKey];
+        setData('mc_dueNowFired', dueNowFiredToday);
+      } else {
+        delete reminderFiredToday[item.fireKey];
+        setData('mc_reminderFired', reminderFiredToday);
+      }
     });
-    setData('mc_reminderFired', reminderFiredToday);
   }
   document.getElementById('reminderOverlay').classList.remove('visible');
   showToast('⏰ Snoozed for 10 minutes');
@@ -1479,7 +1572,7 @@ init();
   <div class="reminder-pulse">
     <div class="reminder-emoji">💊</div>
   </div>
-  <div class="reminder-in">In 30 minutes</div>
+  <div class="reminder-in" id="reminderIn">In 30 minutes</div>
   <div class="reminder-heading" id="reminderHeading">Time to prepare</div>
   <div class="reminder-slot" id="reminderSlot"></div>
   <div class="reminder-meds" id="reminderMeds"></div>
