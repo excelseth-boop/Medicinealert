@@ -94,7 +94,8 @@
   .bp-title{font-family:'Fraunces',serif;font-size:15px;font-weight:600}
   .bp-subtitle{font-size:11px;color:var(--text2);margin-top:2px}
   .bp-badge{background:var(--blue-soft);border:1px solid rgba(96,165,250,0.3);border-radius:20px;padding:3px 9px;font-size:11px;color:var(--blue);font-weight:600}
-  .bp-inputs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:12px}
+  .bp-inputs{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+  .spo2-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
   .bp-field label{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3);margin-bottom:5px}
   .bp-field input,.bp-field select{width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;padding:7px 8px;text-align:center;outline:none;transition:border-color 0.2s}
   .bp-field select{font-size:12px;cursor:pointer}
@@ -435,6 +436,7 @@
       <div class="bp-field"><label>Systolic</label><input type="number" id="bpSys" placeholder="120" min="60" max="250"></div>
       <div class="bp-field"><label>Diastolic</label><input type="number" id="bpDia" placeholder="80" min="40" max="150"></div>
       <div class="bp-field"><label>Pulse</label><input type="number" id="bpPulse" placeholder="72" min="30" max="200"></div>
+      <div class="bp-field"><label>SpO₂ %</label><input type="number" id="bpSpo2" placeholder="98" min="70" max="100"></div>
     </div>
     <div class="bp-field" style="margin-bottom:13px">
       <label>Time of Reading</label>
@@ -1036,16 +1038,18 @@ function saveBloodPressure(){
   const sys=parseInt(document.getElementById('bpSys').value);
   const dia=parseInt(document.getElementById('bpDia').value);
   const pulse=parseInt(document.getElementById('bpPulse').value);
+  const spo2=parseInt(document.getElementById('bpSpo2').value);
   const time=document.getElementById('bpTime').value;
   if(!sys||!dia||sys<60||dia<40){showToast('⚠️ Enter valid BP values');return}
   const today=todayStr();
   let bp=getBP(p.id);
   if(bp.filter(r=>r.date===today).length>=3){showToast('⚠️ Max 3 readings per day');return}
-  bp.unshift({id:Date.now(),date:today,sys,dia,pulse:pulse||null,time,ts:Date.now()});
+  bp.unshift({id:Date.now(),date:today,sys,dia,pulse:pulse||null,spo2:(spo2>=70&&spo2<=100)?spo2:null,time,ts:Date.now()});
   setBP(p.id,bp);
   document.getElementById('bpSys').value='';
   document.getElementById('bpDia').value='';
   document.getElementById('bpPulse').value='';
+  document.getElementById('bpSpo2').value='';
   showToast('💓 BP saved for '+p.name);renderBP();
 }
 
@@ -1055,6 +1059,13 @@ function bpStatus(sys,dia){
   if(sys<=129&&dia<80)return{label:'Elevated',color:'#fbbf24',bg:'var(--amber-soft)'};
   if(sys<=139||dia<=89)return{label:'High',color:'#fb923c',bg:'rgba(251,146,60,0.12)'};
   return{label:'Crisis',color:'#f87171',bg:'var(--red-soft)'};
+}
+
+function spo2Status(v){
+  if(!v) return null;
+  if(v>=95) return {label:'Normal',color:'#4ade80',bg:'var(--accent-soft)'};
+  if(v>=90) return {label:'Low',   color:'#fbbf24',bg:'var(--amber-soft)'};
+  return           {label:'Critical',color:'#f87171',bg:'var(--red-soft)'};
 }
 
 function renderBP(){
@@ -1070,7 +1081,16 @@ function renderBP(){
     h+=`<div class="history-date-label">${formatDate(date)}</div>`;
     g[date].forEach(r=>{
       const st=bpStatus(r.sys,r.dia);
-      h+=`<div class="bp-entry"><div style="font-size:20px">💓</div><div class="bp-reading"><div class="bp-nums">${r.sys}/${r.dia} <span>mmHg</span></div><div class="bp-entry-meta">${r.time}${r.pulse?' · Pulse '+r.pulse+' bpm':''}</div></div><div class="bp-status-pill" style="background:${st.bg};color:${st.color};border:1px solid ${st.color}33">${st.label}</div></div>`;
+      const sp=r.spo2?spo2Status(r.spo2):null;
+      const spo2Badge=sp?`<span class="spo2-pill" style="background:${sp.bg};color:${sp.color};border:1px solid ${sp.color}33">🫧 ${r.spo2}%</span>`:'';
+      h+=`<div class="bp-entry" style="flex-wrap:wrap;gap:8px">
+        <div style="font-size:20px">💓</div>
+        <div class="bp-reading" style="flex:1;min-width:0">
+          <div class="bp-nums">${r.sys}/${r.dia} <span>mmHg</span>${r.pulse?' · <span style=\"font-size:13px;font-weight:600\">'+ r.pulse+'</span><span style=\"font-size:10px;color:var(--text3)\"> bpm</span>':''}</div>
+          <div class="bp-entry-meta">${r.time}${spo2Badge}</div>
+        </div>
+        <div class="bp-status-pill" style="background:${st.bg};color:${st.color};border:1px solid ${st.color}33">${st.label}</div>
+      </div>`;
     });
   });
   document.getElementById('bpHistoryList').innerHTML=h;
@@ -1289,7 +1309,7 @@ function renderHistory(){
         html+=`<div class="history-item">
           <div class="history-icon" style="background:var(--blue-soft)">💓</div>
           <div class="history-info">
-            <div class="history-name">${e.r.sys}/${e.r.dia} mmHg${e.r.pulse?' · '+e.r.pulse+' bpm':''}</div>
+            <div class="history-name">${e.r.sys}/${e.r.dia} mmHg${e.r.pulse?' · '+e.r.pulse+' bpm':''}${e.r.spo2?' · 🫧 '+e.r.spo2+'%':''}</div>
             <div class="history-detail">Blood Pressure · ${e.r.time}${multi?' · '+e.p.name:''}</div>
           </div>
           <div class="bp-status-pill" style="background:${st.bg};color:${st.color};border:1px solid ${st.color}33;font-size:10px;padding:2px 8px">${st.label}</div>
