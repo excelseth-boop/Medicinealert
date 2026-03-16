@@ -558,25 +558,37 @@
       <div class="time-chip-wrap" id="wrap_morning">
         <div class="time-chip" data-val="morning" onclick="toggleChip(this,'wrap_morning')">🌅 Morning</div>
         <select class="time-sub-select" id="time_morning">
-          <option value="9:00 AM" selected>9:00 AM</option>
+          <option value="8:00 AM" selected>8:00 AM</option>
+          <option value="8:30 AM">8:30 AM</option>
+          <option value="9:00 AM">9:00 AM</option>
           <option value="9:30 AM">9:30 AM</option>
           <option value="10:00 AM">10:00 AM</option>
+          <option value="10:30 AM">10:30 AM</option>
+          <option value="11:00 AM">11:00 AM</option>
+          <option value="11:30 AM">11:30 AM</option>
+          <option value="12:00 PM">12:00 PM</option>
         </select>
       </div>
       <div class="time-chip-wrap" id="wrap_afternoon">
         <div class="time-chip" data-val="afternoon" onclick="toggleChip(this,'wrap_afternoon')">☀️ Afternoon</div>
         <select class="time-sub-select" id="time_afternoon">
-          <option value="1:00 PM" selected>1:00 PM</option>
+          <option value="12:00 PM" selected>12:00 PM</option>
+          <option value="12:30 PM">12:30 PM</option>
+          <option value="1:00 PM">1:00 PM</option>
           <option value="1:30 PM">1:30 PM</option>
           <option value="2:00 PM">2:00 PM</option>
           <option value="2:30 PM">2:30 PM</option>
           <option value="3:00 PM">3:00 PM</option>
+          <option value="3:30 PM">3:30 PM</option>
+          <option value="4:00 PM">4:00 PM</option>
         </select>
       </div>
       <div class="time-chip-wrap" id="wrap_evening">
         <div class="time-chip" data-val="evening" onclick="toggleChip(this,'wrap_evening')">🌆 Evening</div>
         <select class="time-sub-select" id="time_evening">
-          <option value="5:00 PM" selected>5:00 PM</option>
+          <option value="4:00 PM" selected>4:00 PM</option>
+          <option value="4:30 PM">4:30 PM</option>
+          <option value="5:00 PM">5:00 PM</option>
           <option value="5:30 PM">5:30 PM</option>
           <option value="6:00 PM">6:00 PM</option>
           <option value="6:30 PM">6:30 PM</option>
@@ -586,9 +598,13 @@
       <div class="time-chip-wrap" id="wrap_night">
         <div class="time-chip" data-val="night" onclick="toggleChip(this,'wrap_night')">🌙 Night</div>
         <select class="time-sub-select" id="time_night">
-          <option value="8:00 PM" selected>8:00 PM</option>
+          <option value="7:00 PM" selected>7:00 PM</option>
+          <option value="7:30 PM">7:30 PM</option>
+          <option value="8:00 PM">8:00 PM</option>
           <option value="8:30 PM">8:30 PM</option>
           <option value="9:00 PM">9:00 PM</option>
+          <option value="9:30 PM">9:30 PM</option>
+          <option value="10:00 PM">10:00 PM</option>
         </select>
       </div>
       <div class="time-chip-wrap" id="wrap_bedtime">
@@ -597,6 +613,7 @@
           <option value="10:00 PM" selected>10:00 PM</option>
           <option value="10:30 PM">10:30 PM</option>
           <option value="11:00 PM">11:00 PM</option>
+          <option value="11:30 PM">11:30 PM</option>
         </select>
       </div>
     </div>
@@ -805,10 +822,10 @@ function setData(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 // ===== CONSTANTS =====
 const SLOTS=[
   {id:'emptystomach',label:'Empty Stomach',time:'7:00 AM',    icon:'🫙',dot:'#fb923c'},
-  {id:'morning',     label:'Morning',      time:'9:00 AM',    icon:'🌅',dot:'#fbbf24'},
-  {id:'afternoon',   label:'Afternoon',    time:'1:00 PM',    icon:'☀️',dot:'#f97316'},
-  {id:'evening',     label:'Evening',      time:'5:00 PM',    icon:'🌆',dot:'#a78bfa'},
-  {id:'night',       label:'Night',        time:'8:00 PM',    icon:'🌙',dot:'#60a5fa'},
+  {id:'morning',     label:'Morning',      time:'8:00 AM',    icon:'🌅',dot:'#fbbf24'},
+  {id:'afternoon',   label:'Afternoon',    time:'12:00 PM',   icon:'☀️',dot:'#f97316'},
+  {id:'evening',     label:'Evening',      time:'4:00 PM',    icon:'🌆',dot:'#a78bfa'},
+  {id:'night',       label:'Night',        time:'7:00 PM',    icon:'🌙',dot:'#60a5fa'},
   {id:'bedtime',     label:'Bedtime',      time:'10:00 PM',   icon:'🛏️',dot:'#34d399'},
 ];
 const MED_ICONS=['💊','💉','🧪','🌿','🔵','🔴','🟡','🟠'];
