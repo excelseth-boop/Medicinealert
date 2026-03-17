@@ -598,8 +598,17 @@
     <div class="summary-chip"><div class="summary-chip-val" id="statDoses" style="color:var(--amber)">0</div><div class="summary-chip-lbl">Doses/Day</div></div>
   </div>
 
-  <!-- Medicine List -->
-  <div id="medListContainer"><div class="empty-state" style="padding:16px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Tap below to add.</p></div></div>
+  <!-- Medicine List — accordion -->
+  <button class="accordion-btn" id="medListBtn" onclick="toggleAccordion('medListPanel','medListBtn')">
+    <span class="accordion-btn-label">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+      <span id="medListBtnLabel">My Medicines</span>
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="medListPanel">
+    <div id="medListContainer"><div class="empty-state" style="padding:16px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Tap "Add Medicine" below.</p></div></div>
+  </div>
 
   <!-- Add Medicine — accordion -->
   <button class="accordion-btn" id="addMedBtn" onclick="toggleAccordion('addMedPanel','addMedBtn')">
@@ -1360,6 +1369,13 @@ function renderRx(){
   document.getElementById('statTotal').textContent=meds.length;
   document.getElementById('statActive').textContent=active.length;
   document.getElementById('statDoses').textContent=active.reduce((s,m)=>s+m.times.length,0);
+  // Update medicine list accordion button label with live count
+  const lblEl = document.getElementById('medListBtnLabel');
+  if(lblEl){
+    const completedCount = meds.length - active.length;
+    lblEl.textContent = 'My Medicines — ' + active.length + ' active'
+      + (completedCount > 0 ? ', ' + completedCount + ' completed' : '');
+  }
   if(!meds.length){
     document.getElementById('medListContainer').innerHTML=`<div class="empty-state" style="padding:20px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Add prescribed medicines above.</p></div>`;
   } else {
