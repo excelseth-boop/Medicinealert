@@ -384,6 +384,57 @@
   .weekly-days-row{display:flex;gap:6px;flex-wrap:wrap}
   .day-chip{padding:6px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s}
   .day-chip.selected{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+
+  /* ===== APPOINTMENT ALERT OVERLAY ===== */
+  .appt-overlay {
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(8,10,20,0.97);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 24px; opacity: 0; pointer-events: none; transition: opacity 0.4s;
+  }
+  .appt-overlay.visible { opacity: 1; pointer-events: all; }
+  .appt-icon-ring {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(96,165,250,0.25) 0%, transparent 70%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; margin-bottom: 22px; position: relative;
+    animation: apptPulse 2s ease-in-out infinite;
+  }
+  .appt-icon-ring::before {
+    content: ''; position: absolute; inset: -10px; border-radius: 50%;
+    border: 2px solid rgba(96,165,250,0.35);
+    animation: apptPulse 2s ease-in-out infinite 0.3s;
+  }
+  @keyframes apptPulse {
+    0%,100%{ transform:scale(1);opacity:1 }
+    50%     { transform:scale(1.08);opacity:0.7 }
+  }
+  .appt-badge { font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--blue);margin-bottom:8px }
+  .appt-heading { font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--text);text-align:center;margin-bottom:6px;line-height:1.25 }
+  .appt-sub { font-size:14px;color:var(--text2);text-align:center;margin-bottom:24px;line-height:1.6 }
+  .appt-detail-card {
+    width:100%;max-width:380px;background:var(--surface2);
+    border:1px solid rgba(96,165,250,0.25);border-radius:14px;
+    padding:16px 18px;margin-bottom:28px;
+  }
+  .appt-detail-row { display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px }
+  .appt-detail-row:last-child { border-bottom:none }
+  .appt-detail-row svg { flex-shrink:0;color:var(--blue) }
+  .appt-detail-label { color:var(--text2);min-width:80px;font-size:12px;font-weight:600 }
+  .appt-detail-val { color:var(--text);font-weight:600;flex:1 }
+  .appt-dismiss {
+    width:100%;max-width:380px;padding:15px;background:var(--blue);color:#000;
+    border:none;border-radius:14px;font-family:'DM Sans',sans-serif;
+    font-size:16px;font-weight:800;cursor:pointer;letter-spacing:0.3px;margin-bottom:10px
+  }
+  .appt-info-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 13px 15px; margin-bottom: 10px;
+  }
+  .appt-info-row { display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:5px }
+  .appt-info-row:last-child { margin-bottom:0 }
+  .appt-info-row strong { color:var(--text) }
 </style>
 </head>
 <body>
@@ -619,12 +670,56 @@
         </select>
       </div>
     </div>
-    <label class="form-label">Notes (optional)</label>
-    <input class="form-input" id="medNotes" placeholder="e.g. Take with water">
     <button class="add-med-btn" onclick="addMedicine()">Add to Prescription</button>
   </div>
   <div class="section-header"><div class="section-title">Medicines</div></div>
   <div id="medListContainer"><div class="empty-state" style="padding:20px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Add prescribed medicines above.</p></div></div>
+
+  <!-- DOCTOR INFO (up to 4) -->
+  <div class="form-section" style="margin-top:18px">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      Doctors &amp; Appointments <span style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--text2);font-weight:400">(up to 4)</span>
+    </div>
+    <div id="docListDisplay"></div>
+    <div id="docAddFormWrap">
+      <label class="form-label">Doctor Name</label>
+      <input class="form-input" id="docName" placeholder="e.g. Dr. Sharma">
+      <label class="form-label">Speciality (optional)</label>
+      <input class="form-input" id="docSpeciality" placeholder="e.g. Cardiologist">
+      <label class="form-label">Contact Number</label>
+      <input class="form-input" id="docContact" placeholder="e.g. 98765 43210" type="tel">
+      <label class="form-label">Next Appointment Date</label>
+      <input class="form-input" id="apptDate" type="date">
+      <label class="form-label">Remind me before appointment</label>
+      <select class="form-select" id="apptRemindDays">
+        <option value="0">No reminder</option>
+        <option value="1" selected>1 day before</option>
+        <option value="2">2 days before</option>
+      </select>
+      <input type="hidden" id="docEditIndex" value="-1">
+      <button class="add-med-btn" id="docSaveBtn" onclick="saveDocEntry()">Add Doctor</button>
+    </div>
+  </div>
+
+  <!-- YEARLY CHECKUP -->
+  <div class="form-section" style="margin-top:4px">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Yearly Health Checkup
+    </div>
+    <label class="form-label">Checkup Date</label>
+    <input class="form-input" id="checkupDate" type="date">
+    <label class="form-label">Remind me before checkup</label>
+    <select class="form-select" id="checkupRemindDays">
+      <option value="0">No reminder</option>
+      <option value="1" selected>1 day before</option>
+      <option value="2">2 days before</option>
+    </select>
+    <button class="add-med-btn" onclick="saveCheckupInfo()">Save Checkup Date</button>
+  </div>
+  <div id="checkupInfoDisplay"></div>
+
 </div>
 
 <!-- HISTORY -->
@@ -809,8 +904,6 @@
         </select>
       </div>
     </div>
-    <label class="form-label">Notes</label>
-    <input class="form-input" id="editMedNotes" placeholder="Optional notes">
     <button class="modal-btn modal-btn-primary" onclick="saveEditedMed()">Save Changes</button>
     <button class="modal-btn modal-btn-cancel" onclick="closeModal('editDoseModal')">Cancel</button>
   </div>
@@ -1201,7 +1294,7 @@ function addMedicine(){
     :[];
   if(duration==='weekly'&&weekDays.length===0){showToast('⚠️ Select at least one day for weekly');return;}
   const food=document.getElementById('medFood').value;
-  const notes=document.getElementById('medNotes').value.trim();
+  const notes='';
   // Collect selected slots with their chosen sub-times
   const selectedChips=[...document.querySelectorAll('#timeChips .time-chip.selected')];
   const times=selectedChips.map(c=>c.dataset.val);
@@ -1220,7 +1313,6 @@ function addMedicine(){
   document.getElementById('medName').value='';
   // reset dosage type to tablet default
   setDoseType('tablet','');
-  document.getElementById('medNotes').value='';
   document.querySelectorAll('#timeChips .time-chip').forEach(c=>c.classList.remove('selected'));
   document.querySelectorAll('#timeChips .time-chip-wrap').forEach(w=>w.classList.remove('selected'));
   document.querySelectorAll('#weeklyDaysRow .day-chip').forEach(c=>c.classList.remove('selected'));
@@ -1259,13 +1351,19 @@ function renderRx(){
       <div class="med-list-icon color-${ci}">${MED_ICONS[ci]}</div>
       <div class="med-list-info">
         <div class="med-list-name">${med.name} ${act?'':'<span style="color:var(--red);font-size:10px">(Done)</span>'}</div>
-        <div class="med-list-detail">${med.dosage} · ${med.food}<br>${tl}<br>${dur}${med.notes?'<br>📝 '+med.notes:''}</div>
+        <div class="med-list-detail">${med.dosage} · ${med.food}<br>${tl}<br>${dur}</div>
       </div>
       <button class="delete-btn" onclick="deleteMed('${p.id}','${med.id}')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>
     </div>`;
   }).join('');
+  // Render doc/checkup info cards and load form
+  if(p){
+    renderDocInfo(p.id);
+    renderCheckupInfo(p.id);
+    loadDocFormForPerson(p.id);
+  }
 }
 
 // ===== HISTORY =====
@@ -1467,7 +1565,7 @@ function saveEditedMed(){
       ? [...document.querySelectorAll('#editWeeklyDaysRow .day-chip.selected')].map(function(c){return parseInt(c.dataset.day);})
       : [],
     food:     document.getElementById('editMedFood').value,
-    notes:    document.getElementById('editMedNotes').value.trim()};
+    notes: ''} ;
   setMeds(pid, meds);
   let hist = getHist(pid);
   hist = hist.map(h=> h.medId===medId ? {...h, medName: name} : h);
@@ -1475,6 +1573,249 @@ function saveEditedMed(){
   closeModal('editDoseModal');
   showToast('✅ ' + name + ' updated');
   renderToday(); renderRx();
+}
+
+
+// ===== DOCTOR INFO & APPOINTMENTS =====
+function docKey(pid){ return 'mc_docs_'+pid; }   // stores array of up to 4 doctors
+function checkupKey(pid){ return 'mc_checkup_'+pid; }
+
+function getDoctors(pid){ return getData(docKey(pid), []); }
+function setDoctors(pid, arr){ setData(docKey(pid), arr); }
+
+// ── Add / Edit doctor entry ─────────────────────────────────────────────────
+function saveDocEntry(){
+  const p = getAP();
+  if(!p){ showToast('⚠️ Select a person first'); return; }
+  const name       = document.getElementById('docName').value.trim();
+  const speciality = document.getElementById('docSpeciality').value.trim();
+  const contact    = document.getElementById('docContact').value.trim();
+  const date       = document.getElementById('apptDate').value;
+  const remind     = parseInt(document.getElementById('apptRemindDays').value);
+  const editIdx    = parseInt(document.getElementById('docEditIndex').value);
+  if(!name){ showToast('⚠️ Enter doctor name'); return; }
+
+  let docs = getDoctors(p.id);
+  const entry = {id: editIdx >= 0 ? docs[editIdx].id : 'doc_'+Date.now(), name, speciality, contact, date, remind};
+
+  if(editIdx >= 0){
+    docs[editIdx] = entry;
+    showToast('✅ Doctor updated');
+  } else {
+    if(docs.length >= 4){ showToast('⚠️ Max 4 doctors per person'); return; }
+    docs.push(entry);
+    showToast('✅ Dr. '+name+' added');
+  }
+  setDoctors(p.id, docs);
+  resetDocForm();
+  renderDocList(p.id);
+}
+
+function resetDocForm(){
+  document.getElementById('docName').value       = '';
+  document.getElementById('docSpeciality').value = '';
+  document.getElementById('docContact').value    = '';
+  document.getElementById('apptDate').value      = '';
+  document.getElementById('apptRemindDays').value= '1';
+  document.getElementById('docEditIndex').value  = '-1';
+  document.getElementById('docSaveBtn').textContent = 'Add Doctor';
+}
+
+function editDocEntry(pid, idx){
+  const docs = getDoctors(pid);
+  const d = docs[idx];
+  if(!d) return;
+  document.getElementById('docName').value        = d.name       || '';
+  document.getElementById('docSpeciality').value  = d.speciality || '';
+  document.getElementById('docContact').value     = d.contact    || '';
+  document.getElementById('apptDate').value       = d.date       || '';
+  document.getElementById('apptRemindDays').value = d.remind !== undefined ? d.remind : 1;
+  document.getElementById('docEditIndex').value   = idx;
+  document.getElementById('docSaveBtn').textContent = 'Update Doctor';
+  document.getElementById('docAddFormWrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function deleteDocEntry(pid, idx){
+  if(!confirm('Remove this doctor entry?')) return;
+  let docs = getDoctors(pid);
+  docs.splice(idx, 1);
+  setDoctors(pid, docs);
+  renderDocList(pid);
+  showToast('🗑️ Doctor removed');
+}
+
+function renderDocList(pid){
+  const docs = getDoctors(pid);
+  const el   = document.getElementById('docListDisplay');
+  const wrap = document.getElementById('docAddFormWrap');
+  if(!el) return;
+
+  if(!docs.length){
+    el.innerHTML = '';
+    if(wrap) wrap.style.display = '';
+    return;
+  }
+
+  let html = '';
+  docs.forEach(function(d, i){
+    const dateStr = d.date
+      ? new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+      : '';
+    const daysUntil = d.date ? Math.round((new Date(d.date+'T00:00:00') - new Date(todayStr()+'T00:00:00')) / 86400000) : null;
+    const urgency = daysUntil !== null && daysUntil <= 2 && daysUntil >= 0
+      ? `<span style="background:var(--amber-soft);color:var(--amber);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px">${daysUntil===0?'Today!':daysUntil===1?'Tomorrow!':daysUntil+' days'}</span>` : '';
+
+    html += `<div class="appt-info-card" style="margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text)">👨‍⚕️ ${d.name}</div>
+          ${d.speciality?`<div style="font-size:12px;color:var(--blue);margin-top:2px">${d.speciality}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="editDocEntry('${pid}',${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;border-radius:6px;transition:color 0.2s" title="Edit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onclick="deleteDocEntry('${pid}',${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;border-radius:6px;transition:color 0.2s" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>
+      ${d.contact?`<div class="appt-info-row">📞 <strong>${d.contact}</strong></div>`:''}
+      ${d.date?`<div class="appt-info-row">📅 Next appt: <strong>${dateStr}</strong>${urgency}</div>`:''}
+      ${d.remind&&d.date?`<div class="appt-info-row">🔔 <strong>${d.remind} day${d.remind>1?'s':''} before</strong></div>`:''}
+    </div>`;
+  });
+
+  if(docs.length < 4){
+    html += `<button onclick="resetDocForm()" class="add-med-btn" style="background:var(--surface2);color:var(--accent);border:1px solid var(--accent);margin-bottom:10px">+ Add Another Doctor</button>`;
+  }
+
+  el.innerHTML = html;
+  if(wrap) wrap.style.display = docs.length >= 4 ? 'none' : '';
+}
+
+function loadDocFormForPerson(pid){
+  resetDocForm();
+  renderDocList(pid);
+  const cu = getData(checkupKey(pid), {});
+  document.getElementById('checkupDate').value       = cu.date   || '';
+  document.getElementById('checkupRemindDays').value = cu.remind !== undefined ? cu.remind : 1;
+}
+
+function saveCheckupInfo(){
+  const p = getAP();
+  if(!p){ showToast('⚠️ Select a person first'); return; }
+  const date   = document.getElementById('checkupDate').value;
+  const remind = parseInt(document.getElementById('checkupRemindDays').value);
+  if(!date){ showToast('⚠️ Enter a checkup date'); return; }
+  setData(checkupKey(p.id), {date, remind});
+  showToast('✅ Checkup date saved for ' + p.name);
+  renderCheckupInfo(p.id);
+}
+
+function renderCheckupInfo(pid){
+  const cu = getData(checkupKey(pid), {});
+  const el = document.getElementById('checkupInfoDisplay');
+  if(!el) return;
+  if(!cu.date){ el.innerHTML=''; return; }
+  const dateStr = new Date(cu.date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  el.innerHTML = `<div class="appt-info-card">
+    <div class="appt-info-row">🩺 Yearly checkup: <strong>${dateStr}</strong></div>
+    ${cu.remind?`<div class="appt-info-row">🔔 Reminder: <strong>${cu.remind} day${cu.remind>1?'s':''} before</strong></div>`:''}
+  </div>`;
+}
+
+// ── Appointment & checkup alert engine ──────────────────────────────────────
+var _apptShownToday = getData('mc_apptShown', {date:'', fired:{}});
+var _apptQueue = [];   // queue of pending alerts to show one by one
+var _apptShowing = false;
+
+function resetApptShownIfNewDay(){
+  var t = todayStr();
+  if(_apptShownToday.date !== t){ _apptShownToday = {date:t, fired:{}}; setData('mc_apptShown', _apptShownToday); }
+}
+
+function checkAppointmentAlerts(){
+  resetApptShownIfNewDay();
+  var today = new Date(todayStr()+'T00:00:00');
+
+  persons.forEach(function(p){
+    // Each doctor
+    getDoctors(p.id).forEach(function(d){
+      if(!d.date || !d.remind) return;
+      var apptDate  = new Date(d.date+'T00:00:00');
+      var daysUntil = Math.round((apptDate - today) / 86400000);
+      var key = 'appt_'+p.id+'_'+d.id+'_'+d.date;
+      if(daysUntil === d.remind && !_apptShownToday.fired[key]){
+        _apptShownToday.fired[key] = true;
+        setData('mc_apptShown', _apptShownToday);
+        _apptQueue.push({
+          type:'appointment', person:p, daysUntil:daysUntil,
+          date:d.date, dateStr:apptDate.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),
+          doctor:d.name||'', speciality:d.speciality||'', contact:d.contact||''
+        });
+      }
+    });
+    // Yearly checkup
+    var cu = getData(checkupKey(p.id), {});
+    if(cu.date && cu.remind > 0){
+      var cuDate  = new Date(cu.date+'T00:00:00');
+      var cuDays  = Math.round((cuDate - today) / 86400000);
+      var cuKey   = 'checkup_'+p.id+'_'+cu.date;
+      if(cuDays === cu.remind && !_apptShownToday.fired[cuKey]){
+        _apptShownToday.fired[cuKey] = true;
+        setData('mc_apptShown', _apptShownToday);
+        _apptQueue.push({
+          type:'checkup', person:p, daysUntil:cuDays,
+          date:cu.date, dateStr:cuDate.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),
+          doctor:'', speciality:'', contact:''
+        });
+      }
+    }
+  });
+
+  if(_apptQueue.length > 0 && !_apptShowing) showNextApptAlert();
+}
+
+function showNextApptAlert(){
+  if(_apptQueue.length === 0){ _apptShowing = false; return; }
+  _apptShowing = true;
+  showApptAlert(_apptQueue.shift());
+}
+
+function showApptAlert(info){
+  var isAppt = info.type === 'appointment';
+  document.getElementById('apptIcon').textContent = isAppt ? '🏥' : '🩺';
+  document.getElementById('apptBadge').textContent = isAppt ? '📅 APPOINTMENT REMINDER' : '🩺 CHECKUP REMINDER';
+  document.getElementById('apptHeading').textContent = isAppt
+    ? 'Dr. '+(info.doctor||'Appointment')+' — '+(info.daysUntil===1?'Tomorrow!':'in '+info.daysUntil+' Days')
+    : 'Health Checkup '+(info.daysUntil===1?'Tomorrow!':'in '+info.daysUntil+' Days');
+
+  const remaining = _apptQueue.length;
+  document.getElementById('apptSub').textContent = 'For '+info.person.name
+    +(remaining>0?' · '+(remaining)+' more reminder'+(remaining>1?'s':'')+'…':'');
+
+  var rows = '';
+  rows += `<div class="appt-detail-row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span class="appt-detail-label">Date</span><span class="appt-detail-val">${info.dateStr}</span></div>`;
+  if(info.doctor)     rows += `<div class="appt-detail-row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="appt-detail-label">Doctor</span><span class="appt-detail-val">${info.doctor}${info.speciality?' · <span style=\"color:var(--blue);font-weight:500\">'+info.speciality+'</span>':''}</span></div>`;
+  if(info.contact)    rows += `<div class="appt-detail-row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg><span class="appt-detail-label">Contact</span><span class="appt-detail-val">${info.contact}</span></div>`;
+  document.getElementById('apptDetailCard').innerHTML = rows;
+
+  // Update dismiss button text
+  document.getElementById('apptDismissBtn').textContent = _apptQueue.length > 0 ? 'Next (' + _apptQueue.length + ' more)' : 'Got it!';
+
+  if(navigator.vibrate) navigator.vibrate([200,100,200]);
+  document.getElementById('apptOverlay').classList.add('visible');
+}
+
+function dismissApptAlert(){
+  document.getElementById('apptOverlay').classList.remove('visible');
+  // Show next queued alert after short pause
+  if(_apptQueue.length > 0){
+    setTimeout(showNextApptAlert, 400);
+  } else {
+    _apptShowing = false;
+  }
 }
 
 // ===== INIT =====
@@ -1507,11 +1848,13 @@ function init(){
 
   // Check reminders immediately on load (catches current time on app open)
   setTimeout(checkMedicineReminders, 1500);
+  setTimeout(checkAppointmentAlerts, 2000);
 
   // Poll every 30 seconds for reliability (iOS may throttle 60s)
   setInterval(function(){
     checkDateRollover();
     checkMedicineReminders();
+    checkAppointmentAlerts();
   }, 30000);
 
   // Re-check every time user opens/returns to app
@@ -1520,6 +1863,7 @@ function init(){
       checkDateRollover();
       // Small delay to let JS settle after wake
       setTimeout(checkMedicineReminders, 800);
+      setTimeout(checkAppointmentAlerts, 1200);
     }
   });
 
@@ -1757,6 +2101,16 @@ init();
   <button class="reminder-dismiss" onclick="dismissReminder()">Got it!</button>
   <button class="reminder-snooze" onclick="snoozeReminder()">⏰ Remind me in 10 min</button>
   <div class="reminder-auto-bar"><div class="reminder-auto-fill" id="reminderAutoFill"></div></div>
+</div>
+
+<!-- APPOINTMENT / CHECKUP ALERT OVERLAY -->
+<div class="appt-overlay" id="apptOverlay">
+  <div class="appt-icon-ring" id="apptIcon">📅</div>
+  <div class="appt-badge" id="apptBadge">Reminder</div>
+  <div class="appt-heading" id="apptHeading">Upcoming Appointment</div>
+  <div class="appt-sub" id="apptSub"></div>
+  <div class="appt-detail-card" id="apptDetailCard"></div>
+  <button class="appt-dismiss" id="apptDismissBtn" onclick="dismissApptAlert()">Got it!</button>
 </div>
 </body>
 </html>
