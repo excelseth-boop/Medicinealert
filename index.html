@@ -48,7 +48,7 @@
   .nav-btn span{font-size:10px;font-weight:500;letter-spacing:0.3px}
 
   /* PAGES */
-  .page{display:none;padding:14px 16px 100px;position:relative;z-index:1}
+  .page{display:none;padding:10px 14px 90px;position:relative;z-index:1}
   .page.active{display:block}
 
   /* SECTION HEADERS */
@@ -435,6 +435,62 @@
   .appt-info-row { display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:5px }
   .appt-info-row:last-child { margin-bottom:0 }
   .appt-info-row strong { color:var(--text) }
+
+  /* ===== ACCORDION / COLLAPSIBLE PANELS ===== */
+  .accordion-btn {
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:13px 16px; cursor:pointer; margin-bottom:8px; transition:all 0.2s;
+    font-family:'DM Sans',sans-serif;
+  }
+  .accordion-btn.open { border-color:var(--accent); background:var(--accent-soft); margin-bottom:0; border-radius:var(--radius-sm) var(--radius-sm) 0 0; }
+  .accordion-btn-label { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--text); }
+  .accordion-btn.open .accordion-btn-label { color:var(--accent); }
+  .accordion-arrow { transition:transform 0.25s; color:var(--text3); }
+  .accordion-btn.open .accordion-arrow { transform:rotate(180deg); color:var(--accent); }
+  .accordion-panel {
+    display:none; background:var(--surface); border:1px solid var(--accent);
+    border-top:none; border-radius:0 0 var(--radius-sm) var(--radius-sm);
+    padding:16px; margin-bottom:10px; animation:slideDown 0.2s ease;
+  }
+  .accordion-panel.open { display:block; }
+  @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Compact summary strip */
+  .summary-strip {
+    display:flex; gap:8px; overflow-x:auto; padding:2px 0 8px;
+    scrollbar-width:none; margin-bottom:6px;
+  }
+  .summary-strip::-webkit-scrollbar{display:none}
+  .summary-chip {
+    display:flex; flex-direction:column; align-items:center;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:10px 14px; min-width:80px; flex-shrink:0;
+  }
+  .summary-chip-val { font-family:'Fraunces',serif; font-size:20px; font-weight:600; line-height:1; }
+  .summary-chip-lbl { font-size:10px; color:var(--text2); margin-top:3px; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+
+  /* Compact BP entry */
+  .bp-compact-list { display:flex; flex-direction:column; gap:7px; }
+  .bp-compact-entry {
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:10px 13px;
+  }
+  .bp-compact-date { font-size:11px; color:var(--text2); min-width:60px; }
+  .bp-compact-nums { font-family:'Fraunces',serif; font-size:15px; font-weight:700; flex:1; }
+  .bp-compact-meta { font-size:11px; color:var(--text2); }
+
+  /* Compact med row in Today */
+  .today-compact { padding:0; }
+
+  /* Doctor compact card */
+  .doc-compact { display:flex; align-items:center; gap:10px; padding:10px 13px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:7px; }
+  .doc-compact-icon { font-size:22px; flex-shrink:0; }
+  .doc-compact-info { flex:1; }
+  .doc-compact-name { font-size:14px; font-weight:700; }
+  .doc-compact-detail { font-size:11px; color:var(--text2); margin-top:2px; }
+  .doc-compact-actions { display:flex; gap:4px; }
 </style>
 </head>
 <body>
@@ -475,21 +531,33 @@
 <!-- BP -->
 <div class="page" id="page-bp">
   <div style="height:8px"></div>
-  <div class="bp-card">
-    <div class="bp-header">
-      <div>
-        <div class="bp-title">Blood Pressure Log</div>
-        <div class="bp-subtitle" id="bpPersonLabel">Select a person above</div>
-      </div>
-      <div class="bp-badge" id="bpCountBadge">0 / 3 today</div>
-    </div>
-    <div class="bp-inputs">
+
+  <!-- Person + today count strip -->
+  <div class="person-indicator" style="margin-bottom:12px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    BP &amp; O₂ for <strong id="bpPersonLabel">—</strong>
+    <span id="bpCountBadge" style="margin-left:auto;background:var(--blue-soft);border:1px solid rgba(96,165,250,0.3);border-radius:20px;padding:3px 9px;font-size:11px;color:var(--blue);font-weight:600">0/3 today</span>
+  </div>
+
+  <!-- Today's readings summary -->
+  <div id="bpTodaySummary" style="margin-bottom:10px"></div>
+
+  <!-- Log new reading — accordion -->
+  <button class="accordion-btn" id="bpLogBtn" onclick="toggleAccordion('bpLog','bpLogBtn')">
+    <span class="accordion-btn-label">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Log New Reading
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="bpLog">
+    <div class="bp-inputs" style="margin-bottom:10px">
       <div class="bp-field"><label>Systolic</label><input type="number" id="bpSys" placeholder="120" min="60" max="250"></div>
       <div class="bp-field"><label>Diastolic</label><input type="number" id="bpDia" placeholder="80" min="40" max="150"></div>
       <div class="bp-field"><label>Pulse</label><input type="number" id="bpPulse" placeholder="72" min="30" max="200"></div>
       <div class="bp-field"><label>SpO₂ %</label><input type="number" id="bpSpo2" placeholder="98" min="70" max="100"></div>
     </div>
-    <div class="bp-field" style="margin-bottom:13px">
+    <div class="bp-field" style="margin-bottom:10px">
       <label>Time of Reading</label>
       <select id="bpTime" class="form-select" style="margin-bottom:0">
         <option value="Morning">🌅 Morning</option>
@@ -500,27 +568,48 @@
     </div>
     <button class="save-bp-btn" onclick="saveBloodPressure()">Save Reading</button>
   </div>
-  <div class="section-header"><div><div class="section-title">Recent Readings</div></div></div>
-  <div id="bpHistoryList"><div class="empty-state" style="padding:20px"><div class="empty-icon">💓</div><p>No readings yet.</p></div></div>
-</div>
 
+  <!-- Recent readings — accordion -->
+  <button class="accordion-btn" id="bpHistBtn" onclick="toggleAccordion('bpHistPanel','bpHistBtn')">
+    <span class="accordion-btn-label">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Reading History
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="bpHistPanel">
+    <div id="bpHistoryList"><div class="empty-state" style="padding:20px"><div class="empty-icon">💓</div><p>No readings yet.</p></div></div>
+  </div>
+</div>
 <!-- PRESCRIPTION -->
 <div class="page" id="page-rx">
   <div style="height:8px"></div>
-  <div class="person-indicator">
+
+  <!-- Person indicator -->
+  <div class="person-indicator" style="margin-bottom:12px">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     Prescription for <strong id="rxPersonName">—</strong>
   </div>
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-val" id="statTotal" style="color:var(--accent)">0</div><div class="stat-lbl">Medicines</div></div>
-    <div class="stat-card"><div class="stat-val" id="statActive" style="color:var(--blue)">0</div><div class="stat-lbl">Active</div></div>
-    <div class="stat-card"><div class="stat-val" id="statDoses" style="color:var(--amber)">0</div><div class="stat-lbl">Doses/Day</div></div>
+
+  <!-- Stats strip -->
+  <div class="summary-strip" style="margin-bottom:10px">
+    <div class="summary-chip"><div class="summary-chip-val" id="statTotal" style="color:var(--accent)">0</div><div class="summary-chip-lbl">Medicines</div></div>
+    <div class="summary-chip"><div class="summary-chip-val" id="statActive" style="color:var(--blue)">0</div><div class="summary-chip-lbl">Active</div></div>
+    <div class="summary-chip"><div class="summary-chip-val" id="statDoses" style="color:var(--amber)">0</div><div class="summary-chip-lbl">Doses/Day</div></div>
   </div>
-  <div class="form-section">
-    <div class="form-section-title">
+
+  <!-- Medicine List -->
+  <div id="medListContainer"><div class="empty-state" style="padding:16px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Tap below to add.</p></div></div>
+
+  <!-- Add Medicine — accordion -->
+  <button class="accordion-btn" id="addMedBtn" onclick="toggleAccordion('addMedPanel','addMedBtn')">
+    <span class="accordion-btn-label">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
       Add Medicine
-    </div>
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="addMedPanel">
     <label class="form-label">Medicine Name</label>
     <input class="form-input" id="medName" placeholder="e.g. Amlodipine 5mg">
     <label class="form-label">Dosage</label>
@@ -531,28 +620,16 @@
         <button type="button" class="dosage-type-btn" id="doseTypeDrops" onclick="setDoseType('drops','')">💧 Drops</button>
       </div>
       <div class="dosage-select-row visible" id="doseTabletRow">
-        <select class="form-select" id="medDoseTablet" style="margin-bottom:0">
-          <option value="1 Tablet">1 Tablet</option>
-          <option value="2 Tablets">2 Tablets</option>
-        </select>
+        <select class="form-select" id="medDoseTablet" style="margin-bottom:0"><option value="1 Tablet">1 Tablet</option><option value="2 Tablets">2 Tablets</option></select>
       </div>
       <div class="dosage-select-row" id="doseLiquidRow">
-        <select class="form-select" id="medDoseLiquid" style="margin-bottom:0">
-          <option value="5 ml">5 ml</option>
-          <option value="10 ml">10 ml</option>
-          <option value="15 ml">15 ml</option>
-        </select>
+        <select class="form-select" id="medDoseLiquid" style="margin-bottom:0"><option value="5 ml">5 ml</option><option value="10 ml">10 ml</option><option value="15 ml">15 ml</option></select>
       </div>
       <div class="dosage-select-row" id="doseDropsRow">
         <select class="form-select" id="medDoseDrops" style="margin-bottom:0">
-          <option value="1 Drop (Eye)">1 Drop — Eye</option>
-          <option value="2 Drops (Eye)">2 Drops — Eye</option>
-          <option value="3 Drops (Eye)">3 Drops — Eye</option>
-          <option value="1 Drop (Ear)">1 Drop — Ear</option>
-          <option value="2 Drops (Ear)">2 Drops — Ear</option>
-          <option value="3 Drops (Ear)">3 Drops — Ear</option>
-          <option value="1 Drop (Eye &amp; Ear)">1 Drop — Eye &amp; Ear</option>
-          <option value="2 Drops (Eye &amp; Ear)">2 Drops — Eye &amp; Ear</option>
+          <option value="1 Drop (Eye)">1 Drop — Eye</option><option value="2 Drops (Eye)">2 Drops — Eye</option><option value="3 Drops (Eye)">3 Drops — Eye</option>
+          <option value="1 Drop (Ear)">1 Drop — Ear</option><option value="2 Drops (Ear)">2 Drops — Ear</option><option value="3 Drops (Ear)">3 Drops — Ear</option>
+          <option value="1 Drop (Eye &amp; Ear)">1 Drop — Eye &amp; Ear</option><option value="2 Drops (Eye &amp; Ear)">2 Drops — Eye &amp; Ear</option>
         </select>
       </div>
     </div>
@@ -561,129 +638,58 @@
       <div>
         <label class="form-label">Duration</label>
         <select class="form-select" id="medDuration" onchange="onDurationChange(this,'')">
-          <option value="ongoing">Daily (ongoing)</option>
-          <option value="alternate">Alternate Days</option>
-          <option value="weekly">Weekly</option>
-          <option value="3">3 days</option><option value="5">5 days</option>
-          <option value="7">7 days</option><option value="10">10 days</option>
-          <option value="14">14 days</option><option value="21">21 days</option>
-          <option value="30">30 days</option><option value="60">60 days</option>
-          <option value="90">90 days</option>
+          <option value="ongoing">Daily (ongoing)</option><option value="alternate">Alternate Days</option><option value="weekly">Weekly</option>
+          <option value="3">3 days</option><option value="5">5 days</option><option value="7">7 days</option><option value="10">10 days</option>
+          <option value="14">14 days</option><option value="21">21 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option>
         </select>
-      </div>
-      <div id="weeklyDaysWrap" class="weekly-days-wrap" style="grid-column:1/-1">
-        <label class="form-label">Repeat on days</label>
-        <div class="weekly-days-row" id="weeklyDaysRow">
-          <div class="day-chip" data-day="0" onclick="toggleDay(this,'')">Sun</div>
-          <div class="day-chip" data-day="1" onclick="toggleDay(this,'')">Mon</div>
-          <div class="day-chip" data-day="2" onclick="toggleDay(this,'')">Tue</div>
-          <div class="day-chip" data-day="3" onclick="toggleDay(this,'')">Wed</div>
-          <div class="day-chip" data-day="4" onclick="toggleDay(this,'')">Thu</div>
-          <div class="day-chip" data-day="5" onclick="toggleDay(this,'')">Fri</div>
-          <div class="day-chip" data-day="6" onclick="toggleDay(this,'')">Sat</div>
-        </div>
-      </div>
-      <div style="display:none"><!-- spacer --></div
       </div>
       <div>
         <label class="form-label">With Food</label>
         <select class="form-select" id="medFood">
-          <option value="Before food">Before food</option>
-          <option value="After food">After food</option>
-          <option value="With food">With food</option>
-          <option value="Empty stomach">Empty stomach</option>
-          <option value="Any time">Any time</option>
+          <option value="Before food">Before food</option><option value="After food">After food</option><option value="With food">With food</option><option value="Empty stomach">Empty stomach</option><option value="Any time">Any time</option>
         </select>
       </div>
     </div>
-    <label class="form-label">Time of Day (select all that apply)</label>
+    <div id="weeklyDaysWrap" class="weekly-days-wrap" style="grid-column:1/-1">
+      <label class="form-label">Repeat on days</label>
+      <div class="weekly-days-row" id="weeklyDaysRow">
+        <div class="day-chip" data-day="0" onclick="toggleDay(this,'')">Sun</div><div class="day-chip" data-day="1" onclick="toggleDay(this,'')">Mon</div>
+        <div class="day-chip" data-day="2" onclick="toggleDay(this,'')">Tue</div><div class="day-chip" data-day="3" onclick="toggleDay(this,'')">Wed</div>
+        <div class="day-chip" data-day="4" onclick="toggleDay(this,'')">Thu</div><div class="day-chip" data-day="5" onclick="toggleDay(this,'')">Fri</div>
+        <div class="day-chip" data-day="6" onclick="toggleDay(this,'')">Sat</div>
+      </div>
+    </div>
+    <label class="form-label">Time of Day</label>
     <div class="checkbox-group" id="timeChips">
-      <div class="time-chip-wrap" id="wrap_emptystomach">
-        <div class="time-chip" data-val="emptystomach" onclick="toggleChip(this,'wrap_emptystomach')">🫙 Empty Stomach</div>
-        <select class="time-sub-select" id="time_emptystomach">
-          <option value="6:00 AM">6:00 AM</option>
-          <option value="6:30 AM">6:30 AM</option>
-          <option value="7:00 AM" selected>7:00 AM</option>
-          <option value="7:30 AM">7:30 AM</option>
-          <option value="8:00 AM">8:00 AM</option>
-        </select>
-      </div>
-      <div class="time-chip-wrap" id="wrap_morning">
-        <div class="time-chip" data-val="morning" onclick="toggleChip(this,'wrap_morning')">🌅 Morning</div>
-        <select class="time-sub-select" id="time_morning">
-          <option value="8:00 AM" selected>8:00 AM</option>
-          <option value="8:30 AM">8:30 AM</option>
-          <option value="9:00 AM">9:00 AM</option>
-          <option value="9:30 AM">9:30 AM</option>
-          <option value="10:00 AM">10:00 AM</option>
-          <option value="10:30 AM">10:30 AM</option>
-          <option value="11:00 AM">11:00 AM</option>
-          <option value="11:30 AM">11:30 AM</option>
-          <option value="12:00 PM">12:00 PM</option>
-        </select>
-      </div>
-      <div class="time-chip-wrap" id="wrap_afternoon">
-        <div class="time-chip" data-val="afternoon" onclick="toggleChip(this,'wrap_afternoon')">☀️ Afternoon</div>
-        <select class="time-sub-select" id="time_afternoon">
-          <option value="12:00 PM" selected>12:00 PM</option>
-          <option value="12:30 PM">12:30 PM</option>
-          <option value="1:00 PM">1:00 PM</option>
-          <option value="1:30 PM">1:30 PM</option>
-          <option value="2:00 PM">2:00 PM</option>
-          <option value="2:30 PM">2:30 PM</option>
-          <option value="3:00 PM">3:00 PM</option>
-          <option value="3:30 PM">3:30 PM</option>
-          <option value="4:00 PM">4:00 PM</option>
-        </select>
-      </div>
-      <div class="time-chip-wrap" id="wrap_evening">
-        <div class="time-chip" data-val="evening" onclick="toggleChip(this,'wrap_evening')">🌆 Evening</div>
-        <select class="time-sub-select" id="time_evening">
-          <option value="4:00 PM" selected>4:00 PM</option>
-          <option value="4:30 PM">4:30 PM</option>
-          <option value="5:00 PM">5:00 PM</option>
-          <option value="5:30 PM">5:30 PM</option>
-          <option value="6:00 PM">6:00 PM</option>
-          <option value="6:30 PM">6:30 PM</option>
-          <option value="7:00 PM">7:00 PM</option>
-        </select>
-      </div>
-      <div class="time-chip-wrap" id="wrap_night">
-        <div class="time-chip" data-val="night" onclick="toggleChip(this,'wrap_night')">🌙 Night</div>
-        <select class="time-sub-select" id="time_night">
-          <option value="7:00 PM" selected>7:00 PM</option>
-          <option value="7:30 PM">7:30 PM</option>
-          <option value="8:00 PM">8:00 PM</option>
-          <option value="8:30 PM">8:30 PM</option>
-          <option value="9:00 PM">9:00 PM</option>
-          <option value="9:30 PM">9:30 PM</option>
-          <option value="10:00 PM">10:00 PM</option>
-        </select>
-      </div>
-      <div class="time-chip-wrap" id="wrap_bedtime">
-        <div class="time-chip" data-val="bedtime" onclick="toggleChip(this,'wrap_bedtime')">🛏️ Bedtime</div>
-        <select class="time-sub-select" id="time_bedtime">
-          <option value="10:00 PM" selected>10:00 PM</option>
-          <option value="10:30 PM">10:30 PM</option>
-          <option value="11:00 PM">11:00 PM</option>
-          <option value="11:30 PM">11:30 PM</option>
-        </select>
-      </div>
+      <div class="time-chip-wrap" id="wrap_emptystomach"><div class="time-chip" data-val="emptystomach" onclick="toggleChip(this,'wrap_emptystomach')">🫙 Empty Stomach</div>
+        <select class="time-sub-select" id="time_emptystomach"><option value="6:00 AM">6:00 AM</option><option value="6:30 AM">6:30 AM</option><option value="7:00 AM" selected>7:00 AM</option><option value="7:30 AM">7:30 AM</option><option value="8:00 AM">8:00 AM</option></select></div>
+      <div class="time-chip-wrap" id="wrap_morning"><div class="time-chip" data-val="morning" onclick="toggleChip(this,'wrap_morning')">🌅 Morning</div>
+        <select class="time-sub-select" id="time_morning"><option value="8:00 AM" selected>8:00 AM</option><option value="8:30 AM">8:30 AM</option><option value="9:00 AM">9:00 AM</option><option value="9:30 AM">9:30 AM</option><option value="10:00 AM">10:00 AM</option><option value="10:30 AM">10:30 AM</option><option value="11:00 AM">11:00 AM</option><option value="11:30 AM">11:30 AM</option><option value="12:00 PM">12:00 PM</option></select></div>
+      <div class="time-chip-wrap" id="wrap_afternoon"><div class="time-chip" data-val="afternoon" onclick="toggleChip(this,'wrap_afternoon')">☀️ Afternoon</div>
+        <select class="time-sub-select" id="time_afternoon"><option value="12:00 PM" selected>12:00 PM</option><option value="12:30 PM">12:30 PM</option><option value="1:00 PM">1:00 PM</option><option value="1:30 PM">1:30 PM</option><option value="2:00 PM">2:00 PM</option><option value="2:30 PM">2:30 PM</option><option value="3:00 PM">3:00 PM</option><option value="3:30 PM">3:30 PM</option><option value="4:00 PM">4:00 PM</option></select></div>
+      <div class="time-chip-wrap" id="wrap_evening"><div class="time-chip" data-val="evening" onclick="toggleChip(this,'wrap_evening')">🌆 Evening</div>
+        <select class="time-sub-select" id="time_evening"><option value="4:00 PM" selected>4:00 PM</option><option value="4:30 PM">4:30 PM</option><option value="5:00 PM">5:00 PM</option><option value="5:30 PM">5:30 PM</option><option value="6:00 PM">6:00 PM</option><option value="6:30 PM">6:30 PM</option><option value="7:00 PM">7:00 PM</option></select></div>
+      <div class="time-chip-wrap" id="wrap_night"><div class="time-chip" data-val="night" onclick="toggleChip(this,'wrap_night')">🌙 Night</div>
+        <select class="time-sub-select" id="time_night"><option value="7:00 PM" selected>7:00 PM</option><option value="7:30 PM">7:30 PM</option><option value="8:00 PM">8:00 PM</option><option value="8:30 PM">8:30 PM</option><option value="9:00 PM">9:00 PM</option><option value="9:30 PM">9:30 PM</option><option value="10:00 PM">10:00 PM</option></select></div>
+      <div class="time-chip-wrap" id="wrap_bedtime"><div class="time-chip" data-val="bedtime" onclick="toggleChip(this,'wrap_bedtime')">🛏️ Bedtime</div>
+        <select class="time-sub-select" id="time_bedtime"><option value="10:00 PM" selected>10:00 PM</option><option value="10:30 PM">10:30 PM</option><option value="11:00 PM">11:00 PM</option><option value="11:30 PM">11:30 PM</option></select></div>
     </div>
     <button class="add-med-btn" onclick="addMedicine()">Add to Prescription</button>
   </div>
-  <div class="section-header"><div class="section-title">Medicines</div></div>
-  <div id="medListContainer"><div class="empty-state" style="padding:20px"><div class="empty-icon">💊</div><h3>No medicines yet</h3><p>Add prescribed medicines above.</p></div></div>
 
-  <!-- DOCTOR INFO (up to 4) -->
-  <div class="form-section" style="margin-top:18px">
-    <div class="form-section-title">
+  <!-- Doctors — accordion -->
+  <button class="accordion-btn" id="docAccBtn" onclick="toggleAccordion('docAccPanel','docAccBtn')">
+    <span class="accordion-btn-label">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-      Doctors &amp; Appointments <span style="font-family:'DM Sans',sans-serif;font-size:11px;color:var(--text2);font-weight:400">(up to 4)</span>
-    </div>
-    <div class="person-indicator" id="docPersonBanner" style="margin-bottom:12px">
+      Doctors &amp; Appointments
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="docAccPanel">
+    <div class="person-indicator" style="margin-bottom:12px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       Doctors for <strong id="docPersonName">—</strong>
+      <span style="margin-left:auto;font-size:11px;color:var(--text3)">(up to 4)</span>
     </div>
     <div id="docListDisplay"></div>
     <div id="docAddFormWrap">
@@ -695,37 +701,34 @@
       <input class="form-input" id="docContact" placeholder="e.g. 98765 43210" type="tel">
       <label class="form-label">Next Appointment Date</label>
       <input class="form-input" id="apptDate" type="date">
-      <label class="form-label">Remind me before appointment</label>
+      <label class="form-label">Remind before appointment</label>
       <select class="form-select" id="apptRemindDays">
-        <option value="0">No reminder</option>
-        <option value="1" selected>1 day before</option>
-        <option value="2">2 days before</option>
+        <option value="0">No reminder</option><option value="1" selected>1 day before</option><option value="2">2 days before</option>
       </select>
       <input type="hidden" id="docEditIndex" value="-1">
       <button class="add-med-btn" id="docSaveBtn" onclick="saveDocEntry()">Add Doctor</button>
     </div>
   </div>
 
-  <!-- YEARLY CHECKUP -->
-  <div class="form-section" style="margin-top:4px">
-    <div class="form-section-title">
+  <!-- Yearly Checkup — accordion -->
+  <button class="accordion-btn" id="checkupAccBtn" onclick="toggleAccordion('checkupAccPanel','checkupAccBtn')">
+    <span class="accordion-btn-label">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-<span id="checkupSectionHeading">Yearly Health Checkup</span>
-    </div>
+      Yearly Health Checkup
+    </span>
+    <svg class="accordion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="accordion-panel" id="checkupAccPanel">
     <label class="form-label">Checkup Date</label>
     <input class="form-input" id="checkupDate" type="date">
-    <label class="form-label">Remind me before checkup</label>
+    <label class="form-label">Remind before checkup</label>
     <select class="form-select" id="checkupRemindDays">
-      <option value="0">No reminder</option>
-      <option value="1" selected>1 day before</option>
-      <option value="2">2 days before</option>
+      <option value="0">No reminder</option><option value="1" selected>1 day before</option><option value="2">2 days before</option>
     </select>
+    <div id="checkupInfoDisplay"></div>
     <button class="add-med-btn" onclick="saveCheckupInfo()">Save Checkup Date</button>
   </div>
-  <div id="checkupInfoDisplay"></div>
-
 </div>
-
 <!-- HISTORY -->
 <div class="page" id="page-history">
   <div style="height:8px"></div>
@@ -1167,10 +1170,28 @@ function spo2Status(v){
 
 function renderBP(){
   const p=getAP();
-  document.getElementById('bpPersonLabel').textContent=p?`Recording for ${p.name}`:'No person selected';
+  document.getElementById('bpPersonLabel').textContent=p?p.name:'No person selected';
   if(!p){document.getElementById('bpHistoryList').innerHTML=`<div class="empty-state" style="padding:20px"><div class="empty-icon">👥</div><p>Add a family member first.</p></div>`;return}
   const today=todayStr(),bp=getBP(p.id);
-  document.getElementById('bpCountBadge').textContent=`${bp.filter(r=>r.date===today).length} / 3 today`;
+  const todayReadings = bp.filter(r=>r.date===today);
+  document.getElementById('bpCountBadge').textContent=`${todayReadings.length}/3 today`;
+  // Render today summary strip
+  const summaryEl = document.getElementById('bpTodaySummary');
+  if(summaryEl){
+    if(!todayReadings.length){
+      summaryEl.innerHTML='';
+    } else {
+      summaryEl.innerHTML = '<div class="bp-compact-list">' + todayReadings.map(function(r){
+        const st=bpStatus(r.sys,r.dia);
+        return `<div class="bp-compact-entry">
+          <div class="bp-compact-date">${r.time}</div>
+          <div class="bp-compact-nums" style="color:${st.color}">${r.sys}/${r.dia}</div>
+          <div class="bp-compact-meta">${r.pulse?' 💓'+r.pulse:''}${r.spo2?' 🫧'+r.spo2+'%':''}</div>
+          <span style="background:${st.bg};color:${st.color};border:1px solid ${st.color}33;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">${st.label}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+  }
   if(!bp.length){document.getElementById('bpHistoryList').innerHTML=`<div class="empty-state" style="padding:20px"><div class="empty-icon">💓</div><p>No readings yet for ${p.name}.</p></div>`;return}
   const g={};bp.forEach(r=>{if(!g[r.date])g[r.date]=[];g[r.date].push(r)});
   let h='';
@@ -1454,7 +1475,13 @@ function renderFamily(){
   }
   const wrap=document.getElementById('addMemberFormWrap');
   wrap.innerHTML=persons.length<5
-    ?`<button class="add-med-btn" style="margin-top:6px" onclick="openAddModal()">+ Add Family Member</button>`
+    ?`<button class="accordion-btn" id="addFamilyBtn" onclick="openAddModal()" style="margin-top:4px">
+        <span class="accordion-btn-label">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/><path d="M19 8v6M22 11h-6" stroke-width="2.5"/></svg>
+          Add Family Member
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      </button>`
     :`<div style="text-align:center;padding:12px;font-size:13px;color:var(--text2)">Maximum 5 members reached.</div>`;
 }
 
@@ -1827,6 +1854,17 @@ function dismissApptAlert(){
   } else {
     _apptShowing = false;
   }
+}
+
+
+// ===== ACCORDION TOGGLE =====
+function toggleAccordion(panelId, btnId){
+  var panel = document.getElementById(panelId);
+  var btn   = document.getElementById(btnId);
+  if(!panel || !btn) return;
+  var isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  btn.classList.toggle('open', !isOpen);
 }
 
 // ===== INIT =====
